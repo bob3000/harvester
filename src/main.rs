@@ -12,7 +12,7 @@ use crate::config::Config;
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let config = Config::load(Path::new("config.json"))?;
-    let controller = FilterController::new(config.lists());
+    let controller = FilterController::new(config);
     controller.run().await?;
     Ok(())
 }

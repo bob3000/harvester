@@ -7,9 +7,10 @@ use crate::filter_list::FilterList;
 
 /// Config contains all relevant information to start the data processing.
 /// Relevant information is considered most of all data sources and destinations
-#[derive(Deserialize, Serialize)]
-pub(crate) struct Config {
-    lists: Vec<FilterList>,
+#[derive(Debug, Deserialize, Serialize)]
+pub struct Config {
+    pub tmp_dir: String,
+    pub lists: Vec<FilterList>,
 }
 
 impl Config {
@@ -20,10 +21,7 @@ impl Config {
             serde_json::from_str(&contents).with_context(|| "could not read configuration file")?;
         Ok(Self {
             lists: config.lists,
+            tmp_dir: config.tmp_dir,
         })
-    }
-
-    pub fn lists(&self) -> &Vec<FilterList> {
-        &self.lists
     }
 }
