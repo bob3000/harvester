@@ -96,13 +96,8 @@ impl FilterController<UrlInput, File> {
 
     /// downloads lists to temp files
     async fn download(&mut self) -> anyhow::Result<()> {
-        let mut src_dest: SourceDest<UrlInput, File> = vec![];
-        for io in self.filter_lists.iter_mut() {
-            src_dest.push((io.reader.take().unwrap(), io.writer.take().unwrap()));
-        }
-        // start processing
         let handles = process(
-            src_dest,
+            &mut self.filter_lists,
             Arc::new(|chunk| async { Ok(chunk) }),
             self.command_rx.clone(),
             self.message_tx.clone(),
@@ -144,13 +139,8 @@ impl FilterController<FileInput, File> {
 
     /// transforms files and writes to temp files
     async fn transform(&mut self) -> anyhow::Result<()> {
-        let mut src_dest: SourceDest<FileInput, File> = vec![];
-        for io in self.filter_lists.iter_mut() {
-            src_dest.push((io.reader.take().unwrap(), io.writer.take().unwrap()));
-        }
-        // start processing
         let handles = process(
-            src_dest,
+            &mut self.filter_lists,
             Arc::new(|chunk| async { Ok(chunk) }),
             self.command_rx.clone(),
             self.message_tx.clone(),
@@ -201,7 +191,7 @@ fn create_out_file<R: Input>(
 /// `process` is the main data processing function. It reads chunks from the source
 /// applies a transformation function and writes the data to the output
 async fn process<SRC, DST, FN, RES>(
-    source_destination: SourceDest<SRC, DST>,
+    filter_lists: &mut Vec<FilterListIO<SRC, DST>>,
     fn_transform: Arc<FN>,
     command_rx: Receiver<ChannelCommand>,
     message_tx: Sender<ChannelMessage>,
@@ -213,9 +203,9 @@ where
     RES: Future<Output = anyhow::Result<Bytes>> + Send + Sync + 'static,
 {
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
-    for (input, output) in source_destination {
-        let reader = Arc::clone(&input);
-        let writer = Arc::clone(&output);
+    for FilterListIO { reader, writer, .. } in filter_lists {
+        let reader = Arc::clone(&reader.take().unwrap());
+        let writer = Arc::clone(&writer.take().unwrap());
         let fn_trans = Arc::clone(&fn_transform);
         let cmd_rx = command_rx.clone();
         let msg_tx = message_tx.clone();
@@ -264,6 +254,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::filter_list::FilterList;
     use async_trait::async_trait;
     use bytes::Bytes;
     use std::io::{Cursor, Read};
@@ -296,8 +287,18 @@ mod tests {
         let output = Arc::new(Mutex::new(Cursor::new(vec![0, 32])));
         let (_, cmd_rx): (Sender<ChannelCommand>, Receiver<ChannelCommand>) = flume::unbounded();
         let (msg_tx, _): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
+        let filter_list = FilterList {
+            id: "".to_string(),
+            source: "".to_string(),
+            tags: vec![],
+            transformations: vec![],
+        };
+        let mut filter_list_io: FilterListIO<TestInput, Cursor<Vec<u8>>> =
+            FilterListIO::new(filter_list);
+        filter_list_io.reader = Some(input);
+        filter_list_io.writer = Some(output.clone());
         let handles = process(
-            vec![(Arc::clone(&input), Arc::clone(&output))],
+            &mut vec![filter_list_io],
             Arc::new(|c| async { Ok(c) }),
             cmd_rx,
             msg_tx,
