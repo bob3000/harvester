@@ -1,3 +1,4 @@
+pub(crate) mod file;
 pub(crate) mod url;
 
 use async_trait::async_trait;

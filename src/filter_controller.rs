@@ -16,15 +16,15 @@ use tokio::task::JoinHandle;
 use crate::{
     config::Config,
     filter_list_io::FilterListIO,
-    input::{url::UrlInput, Input},
+    input::{file::FileInput, url::UrlInput, Input},
 };
 
-type SourceDest<SRC, DST> = Vec<(Arc<Mutex<SRC>>, Vec<Arc<Mutex<DST>>>)>;
+type SourceDest<SRC, DST> = Vec<(Arc<Mutex<SRC>>, Arc<Mutex<DST>>)>;
 
 /// Sub path for downloaded raw lists
 const RAW_PATH: &str = "raw";
 /// Sub path for transformed lists
-const TRANSFORM_PATH: &str = "raw";
+const TRANSFORM_PATH: &str = "transform";
 
 pub enum ChannelMessage {
     Error(String),
@@ -38,50 +38,57 @@ pub enum ChannelCommand {
 
 /// The FilterController stores the in formation needed to run the data processing
 #[derive(Debug)]
-pub struct FilterController {
+pub struct FilterController<R: Input, W: Write> {
     config: Config,
     message_tx: Sender<ChannelMessage>,
     command_rx: Receiver<ChannelCommand>,
-    filter_lists: Vec<FilterListIO<UrlInput, File>>,
+    filter_lists: Vec<FilterListIO<R, W>>,
 }
 
-impl FilterController {
+impl FilterController<UrlInput, File> {
     pub fn new(
         config: Config,
         command_rx: Receiver<ChannelCommand>,
         message_tx: Sender<ChannelMessage>,
     ) -> Self {
-        let filter_lists = config
-            .lists
-            .iter()
-            .map(|f| FilterListIO::new(f.clone()))
-            .collect();
         Self {
             config,
             command_rx,
             message_tx,
-            filter_lists,
+            filter_lists: vec![],
         }
     }
 
     /// Runs the data processing function with UrlInput as input source and a
     /// file as output destination
-    pub async fn run(&mut self) -> anyhow::Result<()> {
+    pub async fn run(&mut self) -> anyhow::Result<FilterController<FileInput, File>> {
         let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
         raw_path.push(RAW_PATH);
 
-        self.prepare_download(raw_path)?;
+        self.prepare_download(raw_path.clone())?;
         self.download().await?;
-        Ok(())
+        let transform_controller = FilterController::<FileInput, File> {
+            config: self.config.clone(),
+            command_rx: self.command_rx.clone(),
+            message_tx: self.message_tx.clone(),
+            filter_lists: vec![],
+        };
+        Ok(transform_controller)
     }
 
     /// Equips the FilterListIO objects with a reader and writers
     fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
+        self.filter_lists = self
+            .config
+            .lists
+            .iter()
+            .map(|f| FilterListIO::new(f.clone()))
+            .collect();
         self.filter_lists
             .iter_mut()
             .try_for_each(|l| -> anyhow::Result<()> {
                 create_input_urls(l)?;
-                create_out_files(l, raw_path.clone())?;
+                create_out_file(l, raw_path.clone())?;
                 Ok(())
             })?;
         Ok(())
@@ -91,7 +98,7 @@ impl FilterController {
     async fn download(&mut self) -> anyhow::Result<()> {
         let mut src_dest: SourceDest<UrlInput, File> = vec![];
         for io in self.filter_lists.iter_mut() {
-            src_dest.push((io.reader.take().unwrap(), io.writers.take().unwrap()));
+            src_dest.push((io.reader.take().unwrap(), io.writer.take().unwrap()));
         }
         // start processing
         let handles = process(
@@ -106,6 +113,72 @@ impl FilterController {
     }
 }
 
+impl FilterController<FileInput, File> {
+    pub async fn run(&mut self) -> anyhow::Result<()> {
+        let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        raw_path.push(RAW_PATH);
+        let mut trans_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        trans_path.push(TRANSFORM_PATH);
+
+        self.prepare_transform(raw_path.clone(), trans_path.clone())?;
+        self.transform().await?;
+        Ok(())
+    }
+
+    fn prepare_transform(&mut self, raw_path: PathBuf, trans_path: PathBuf) -> anyhow::Result<()> {
+        self.filter_lists = self
+            .config
+            .lists
+            .iter()
+            .map(|f| FilterListIO::new(f.clone()))
+            .collect();
+        self.filter_lists
+            .iter_mut()
+            .try_for_each(|l| -> anyhow::Result<()> {
+                get_input_file::<File>(l, raw_path.clone())?;
+                create_out_file::<FileInput>(l, trans_path.clone())?;
+                Ok(())
+            })?;
+        Ok(())
+    }
+
+    /// transforms files and writes to temp files
+    async fn transform(&mut self) -> anyhow::Result<()> {
+        let mut src_dest: SourceDest<FileInput, File> = vec![];
+        for io in self.filter_lists.iter_mut() {
+            src_dest.push((io.reader.take().unwrap(), io.writer.take().unwrap()));
+        }
+        // start processing
+        let handles = process(
+            src_dest,
+            Arc::new(|chunk| async { Ok(chunk) }),
+            self.command_rx.clone(),
+            self.message_tx.clone(),
+        )
+        .await;
+        join_all(handles).await;
+        Ok(())
+    }
+}
+
+fn get_input_file<W: Write>(
+    list: &mut FilterListIO<FileInput, W>,
+    base_dir: PathBuf,
+) -> anyhow::Result<()> {
+    let mut contents =
+        fs::read_dir(base_dir).with_context(|| "input file directory does not exist")?;
+    let entry = contents
+        .find(|it| {
+            if let Ok(it) = it {
+                return it.file_name().to_str().unwrap() == list.filter_list.id;
+            }
+            false
+        })
+        .ok_or_else(|| anyhow::anyhow!("file not found: {}", list.filter_list.id))??;
+    list.reader = Some(Arc::new(Mutex::new(FileInput::new(entry.path()))));
+    Ok(())
+}
+
 fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Result<()> {
     let url = Url::parse(&list.filter_list.source)?;
     let input = UrlInput::new(url);
@@ -113,27 +186,15 @@ fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Result<
     Ok(())
 }
 
-fn create_out_files(
-    list: &mut FilterListIO<UrlInput, File>,
+fn create_out_file<R: Input>(
+    list: &mut FilterListIO<R, File>,
     base_dir: PathBuf,
 ) -> anyhow::Result<()> {
-    list.filter_list
-        .tags
-        .iter()
-        .try_for_each(|tag| -> anyhow::Result<()> {
-            let mut tag_dir = base_dir.clone();
-            tag_dir.push(tag);
-            fs::create_dir_all(&tag_dir)
-                .with_context(|| format!("could not create tag directory: {:?}", &tag_dir))?;
-            let mut out_path = tag_dir.clone();
-            out_path.push(list.filter_list.id.clone());
-            let out_file = File::create(out_path)?;
-            list.writers
-                .as_mut()
-                .unwrap()
-                .push(Arc::new(Mutex::new(out_file)));
-            Ok(())
-        })?;
+    let mut out_path = base_dir;
+    fs::create_dir_all(&out_path).with_context(|| "could not create out directory")?;
+    out_path.push(&list.filter_list.id);
+    let out_file = File::create(out_path).with_context(|| "could not write out file")?;
+    list.writer = Some(Arc::new(Mutex::new(out_file)));
     Ok(())
 }
 
@@ -152,9 +213,9 @@ where
     RES: Future<Output = anyhow::Result<Bytes>> + Send + Sync + 'static,
 {
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
-    for (input, outputs) in source_destination {
+    for (input, output) in source_destination {
         let reader = Arc::clone(&input);
-        let writers: Vec<Arc<Mutex<DST>>> = outputs.iter().map(Arc::clone).collect();
+        let writer = Arc::clone(&output);
         let fn_trans = Arc::clone(&fn_transform);
         let cmd_rx = command_rx.clone();
         let msg_tx = message_tx.clone();
@@ -176,13 +237,11 @@ where
                 match result {
                     Ok(Some(chunk)) => {
                         let chunk = fn_trans(chunk).await.unwrap();
-                        for writer in writers.iter() {
-                            if let Err(e) = writer.lock().await.write_all(&chunk[..]) {
-                                msg_tx
-                                    .send(ChannelMessage::Error(format!("{}", e)))
-                                    .with_context(|| "error sending ChannelMessage")
-                                    .unwrap();
-                            }
+                        if let Err(e) = writer.lock().await.write_all(&chunk[..]) {
+                            msg_tx
+                                .send(ChannelMessage::Error(format!("{}", e)))
+                                .with_context(|| "error sending ChannelMessage")
+                                .unwrap();
                         }
                     }
                     Ok(None) => {
@@ -235,11 +294,10 @@ mod tests {
         let cursor = Cursor::new(input_data.clone());
         let input = Arc::new(Mutex::new(TestInput { cursor }));
         let output = Arc::new(Mutex::new(Cursor::new(vec![0, 32])));
-        let outputs = vec![Arc::clone(&output)];
         let (_, cmd_rx): (Sender<ChannelCommand>, Receiver<ChannelCommand>) = flume::unbounded();
         let (msg_tx, _): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
         let handles = process(
-            vec![(Arc::clone(&input), outputs)],
+            vec![(Arc::clone(&input), Arc::clone(&output))],
             Arc::new(|c| async { Ok(c) }),
             cmd_rx,
             msg_tx,

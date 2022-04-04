@@ -11,7 +11,7 @@ use crate::{filter_list::FilterList, input::Input};
 pub struct FilterListIO<R: Input, W: Write> {
     pub filter_list: FilterList,
     pub reader: Option<Arc<Mutex<R>>>,
-    pub writers: Option<Vec<Arc<Mutex<W>>>>,
+    pub writer: Option<Arc<Mutex<W>>>,
 }
 
 impl<R: Input, W: Write> FilterListIO<R, W> {
@@ -19,7 +19,7 @@ impl<R: Input, W: Write> FilterListIO<R, W> {
         Self {
             filter_list,
             reader: None,
-            writers: Some(Vec::new()),
+            writer: None,
         }
     }
 }

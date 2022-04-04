@@ -7,7 +7,7 @@ use crate::filter_list::FilterList;
 
 /// Config contains all relevant information to start the data processing.
 /// Relevant information is considered most of all data sources and destinations
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub lists: Vec<FilterList>,
     pub tmp_dir: String,

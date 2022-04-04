@@ -52,9 +52,15 @@ async fn main() -> anyhow::Result<()> {
         }
         Ok(c) => c,
     };
-    let mut controller = FilterController::new(config, cmd_rx, msg_tx);
-    if let Err(e) = controller.run().await {
-        eprintln!("{}", e)
-    }
+    let mut download_controller = FilterController::new(config, cmd_rx, msg_tx);
+    let mut transform_controller = match download_controller.run().await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{}", e);
+            exit(1);
+        }
+    };
+    transform_controller.run().await?;
+
     Ok(())
 }
