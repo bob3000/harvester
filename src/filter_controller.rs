@@ -7,7 +7,6 @@ use std::{
 };
 
 use anyhow::Context;
-use bytes::Bytes;
 use flume::{Receiver, Sender};
 use futures::{future::join_all, lock::Mutex, Future};
 use reqwest::Url;
@@ -15,11 +14,11 @@ use tokio::task::JoinHandle;
 
 use crate::{
     config::Config,
+    filter_list::{FilterList, Transformation, TransformationName},
     filter_list_io::FilterListIO,
     input::{file::FileInput, url::UrlInput, Input},
+    transformations,
 };
-
-type SourceDest<SRC, DST> = Vec<(Arc<Mutex<SRC>>, Arc<Mutex<DST>>)>;
 
 /// Sub path for downloaded raw lists
 const RAW_PATH: &str = "raw";
@@ -98,7 +97,7 @@ impl FilterController<UrlInput, File> {
     async fn download(&mut self) -> anyhow::Result<()> {
         let handles = process(
             &mut self.filter_lists,
-            Arc::new(|chunk| async { Ok(chunk) }),
+            Arc::new(|_, chunk| async { Ok(chunk) }),
             self.command_rx.clone(),
             self.message_tx.clone(),
         )
@@ -141,7 +140,16 @@ impl FilterController<FileInput, File> {
     async fn transform(&mut self) -> anyhow::Result<()> {
         let handles = process(
             &mut self.filter_lists,
-            Arc::new(|chunk| async { Ok(chunk) }),
+            Arc::new(|flist: Arc<FilterList>, chunk: String| async move {
+                for Transformation { name, args } in &flist.transformations {
+                    match name {
+                        TransformationName::Column => {
+                            transformations::column(chunk.clone(), args)?;
+                        }
+                    }
+                }
+                Ok(chunk)
+            }),
             self.command_rx.clone(),
             self.message_tx.clone(),
         )
@@ -198,14 +206,22 @@ async fn process<SRC, DST, FN, RES>(
 ) -> Vec<JoinHandle<()>>
 where
     SRC: Input + Send + Sync + 'static,
-    FN: Fn(Bytes) -> RES + Send + Sync + 'static,
+    FN: Fn(Arc<FilterList>, String) -> RES + Send + Sync + 'static,
     DST: Write + Send + Sync + 'static,
-    RES: Future<Output = anyhow::Result<Bytes>> + Send + Sync + 'static,
+    RES: Future<Output = anyhow::Result<String>> + Send + Sync + 'static,
 {
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
-    for FilterListIO { reader, writer, .. } in filter_lists {
+    for FilterListIO {
+        reader,
+        writer,
+        filter_list,
+        ..
+    } in filter_lists
+    {
         let reader = Arc::clone(&reader.take().unwrap());
         let writer = Arc::clone(&writer.take().unwrap());
+        let filter_list = Arc::new(filter_list.clone());
+        let list = Arc::clone(&filter_list);
         let fn_trans = Arc::clone(&fn_transform);
         let cmd_rx = command_rx.clone();
         let msg_tx = message_tx.clone();
@@ -226,8 +242,8 @@ where
                 let result = reader.lock().await.chunk().await;
                 match result {
                     Ok(Some(chunk)) => {
-                        let chunk = fn_trans(chunk).await.unwrap();
-                        if let Err(e) = writer.lock().await.write_all(&chunk[..]) {
+                        let chunk = fn_trans(list.clone(), chunk).await.unwrap();
+                        if let Err(e) = writer.lock().await.write_all(chunk.as_bytes()) {
                             msg_tx
                                 .send(ChannelMessage::Error(format!("{}", e)))
                                 .with_context(|| "error sending ChannelMessage")
@@ -256,7 +272,6 @@ where
 mod tests {
     use crate::filter_list::FilterList;
     use async_trait::async_trait;
-    use bytes::Bytes;
     use std::io::{Cursor, Read};
 
     use super::*;
@@ -268,13 +283,13 @@ mod tests {
 
     #[async_trait]
     impl Input for TestInput {
-        async fn chunk(&mut self) -> anyhow::Result<Option<Bytes>> {
+        async fn chunk(&mut self) -> anyhow::Result<Option<String>> {
             let mut buf = vec![0; 32];
             let n = self.cursor.read(&mut buf)?;
             if n == 0 {
                 Ok(None)
             } else {
-                Ok(Some(Bytes::from(buf)))
+                Ok(Some(String::from_utf8(buf.to_vec()).unwrap()))
             }
         }
     }
@@ -299,7 +314,7 @@ mod tests {
         filter_list_io.writer = Some(output.clone());
         let handles = process(
             &mut vec![filter_list_io],
-            Arc::new(|c| async { Ok(c) }),
+            Arc::new(|_, c| async { Ok(c) }),
             cmd_rx,
             msg_tx,
         )

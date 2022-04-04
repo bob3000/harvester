@@ -3,6 +3,7 @@ mod filter_controller;
 mod filter_list;
 mod filter_list_io;
 mod input;
+mod transformations;
 
 use std::{path::Path, process::exit};
 

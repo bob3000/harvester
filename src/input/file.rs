@@ -6,7 +6,6 @@ use std::{
 
 use crate::input::Input;
 use async_trait::async_trait;
-use bytes::Bytes;
 
 /// UrlInput downloads data from an Url
 #[derive(Debug)]
@@ -23,17 +22,14 @@ impl FileInput {
 
 #[async_trait]
 impl Input for FileInput {
-    async fn chunk(&mut self) -> anyhow::Result<Option<Bytes>> {
+    async fn chunk(&mut self) -> anyhow::Result<Option<String>> {
         if self.handle.is_none() {
             let f = File::open(self.path.clone())?;
             self.handle = Some(BufReader::new(f));
         }
         let mut buf = String::new();
         match self.handle.as_mut().unwrap().read_line(&mut buf) {
-            Ok(n) if n > 0 => {
-                let b = Bytes::from(buf);
-                Ok(Some(b))
-            }
+            Ok(n) if n > 0 => Ok(Some(buf)),
             Ok(n) if n == 0 => Ok(None),
             Ok(_) => Ok(None),
             Err(e) => Err(anyhow::anyhow!(e)),
