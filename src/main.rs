@@ -1,6 +1,7 @@
 mod config;
 mod filter_controller;
 mod filter_list;
+mod filter_list_io;
 mod input;
 
 use std::{path::Path, process::exit};
@@ -51,7 +52,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Ok(c) => c,
     };
-    let controller = FilterController::new(config, cmd_rx, msg_tx);
+    let mut controller = FilterController::new(config, cmd_rx, msg_tx);
     if let Err(e) = controller.run().await {
         eprintln!("{}", e)
     }

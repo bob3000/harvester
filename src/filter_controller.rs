@@ -1,7 +1,8 @@
 use std::{
     fs::{self, File},
     io::Write,
-    path::Path,
+    path::PathBuf,
+    str::FromStr,
     sync::Arc,
 };
 
@@ -14,10 +15,16 @@ use tokio::task::JoinHandle;
 
 use crate::{
     config::Config,
+    filter_list_io::FilterListIO,
     input::{url::UrlInput, Input},
 };
 
 type SourceDest<SRC, DST> = Vec<(Arc<Mutex<SRC>>, Vec<Arc<Mutex<DST>>>)>;
+
+/// Sub path for downloaded raw lists
+const RAW_PATH: &str = "raw";
+/// Sub path for transformed lists
+const TRANSFORM_PATH: &str = "raw";
 
 pub enum ChannelMessage {
     Error(String),
@@ -35,6 +42,7 @@ pub struct FilterController {
     config: Config,
     message_tx: Sender<ChannelMessage>,
     command_rx: Receiver<ChannelCommand>,
+    filter_lists: Vec<FilterListIO<UrlInput, File>>,
 }
 
 impl FilterController {
@@ -43,40 +51,47 @@ impl FilterController {
         command_rx: Receiver<ChannelCommand>,
         message_tx: Sender<ChannelMessage>,
     ) -> Self {
+        let filter_lists = config
+            .lists
+            .iter()
+            .map(|f| FilterListIO::new(f.clone()))
+            .collect();
         Self {
             config,
             command_rx,
             message_tx,
+            filter_lists,
         }
     }
 
     /// Runs the data processing function with UrlInput as input source and a
     /// file as output destination
-    pub async fn run(&self) -> anyhow::Result<()> {
-        let mut src_dest: SourceDest<UrlInput, File> = vec![];
-        fs::create_dir_all(self.config.tmp_dir.clone())
-            .with_context(|| format!("could not create temp directory: {}", self.config.tmp_dir))?;
-        for (idx, list) in self.config.lists.iter().enumerate() {
-            self.message_tx.send(ChannelMessage::Info(format!(
-                "processing list: {}",
-                list.source
-            )))?;
-            // create out files
-            let mut out_files: Vec<Arc<Mutex<File>>> = vec![];
-            let _ = list.tags.iter().map(|tag| -> anyhow::Result<()> {
-                let tag_dir = format!("{}/{}", &self.config.tmp_dir, tag);
-                fs::create_dir(&tag_dir)
-                    .with_context(|| format!("could not create tag directory: {}", tag_dir))?;
-                let path_str = format!("{}/{}", &tag_dir, idx);
-                let path = Path::new(&path_str);
-                let out_file = File::create(path)?;
-                out_files.push(Arc::new(Mutex::new(out_file)));
+    pub async fn run(&mut self) -> anyhow::Result<()> {
+        let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        raw_path.push(RAW_PATH);
+
+        self.prepare_download(raw_path)?;
+        self.download().await?;
+        Ok(())
+    }
+
+    /// Equips the FilterListIO objects with a reader and writers
+    fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
+        self.filter_lists
+            .iter_mut()
+            .try_for_each(|l| -> anyhow::Result<()> {
+                create_input_urls(l)?;
+                create_out_files(l, raw_path.clone())?;
                 Ok(())
-            });
-            // create input source
-            let url = Url::parse(&list.source)?;
-            let input = UrlInput::new(url, None);
-            src_dest.push((Arc::new(Mutex::new(input)), out_files));
+            })?;
+        Ok(())
+    }
+
+    /// downloads lists to temp files
+    async fn download(&mut self) -> anyhow::Result<()> {
+        let mut src_dest: SourceDest<UrlInput, File> = vec![];
+        for io in self.filter_lists.iter_mut() {
+            src_dest.push((io.reader.take().unwrap(), io.writers.take().unwrap()));
         }
         // start processing
         let handles = process(
@@ -89,6 +104,37 @@ impl FilterController {
         join_all(handles).await;
         Ok(())
     }
+}
+
+fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Result<()> {
+    let url = Url::parse(&list.filter_list.source)?;
+    let input = UrlInput::new(url);
+    list.reader = Some(Arc::new(Mutex::new(input)));
+    Ok(())
+}
+
+fn create_out_files(
+    list: &mut FilterListIO<UrlInput, File>,
+    base_dir: PathBuf,
+) -> anyhow::Result<()> {
+    list.filter_list
+        .tags
+        .iter()
+        .try_for_each(|tag| -> anyhow::Result<()> {
+            let mut tag_dir = base_dir.clone();
+            tag_dir.push(tag);
+            fs::create_dir_all(&tag_dir)
+                .with_context(|| format!("could not create tag directory: {:?}", &tag_dir))?;
+            let mut out_path = tag_dir.clone();
+            out_path.push(list.filter_list.id.clone());
+            let out_file = File::create(out_path)?;
+            list.writers
+                .as_mut()
+                .unwrap()
+                .push(Arc::new(Mutex::new(out_file)));
+            Ok(())
+        })?;
+    Ok(())
 }
 
 /// `process` is the main data processing function. It reads chunks from the source

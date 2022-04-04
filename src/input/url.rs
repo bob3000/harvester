@@ -11,8 +11,11 @@ pub(crate) struct UrlInput {
 }
 
 impl UrlInput {
-    pub fn new(url: Url, response: Option<reqwest::Response>) -> Self {
-        Self { url, response }
+    pub fn new(url: Url) -> Self {
+        Self {
+            url,
+            response: None,
+        }
     }
 }
 
