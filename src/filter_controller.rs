@@ -9,15 +9,15 @@ use std::{
 use anyhow::Context;
 use flume::{Receiver, Sender};
 use futures::{future::join_all, lock::Mutex, Future};
+use regex::Regex;
 use reqwest::Url;
 use tokio::task::JoinHandle;
 
 use crate::{
     config::Config,
-    filter_list::{FilterList, Transformation, TransformationName},
+    filter_list::FilterList,
     filter_list_io::FilterListIO,
     input::{file::FileInput, url::UrlInput, Input},
-    transformations,
 };
 
 /// Sub path for downloaded raw lists
@@ -44,6 +44,8 @@ pub struct FilterController<R: Input, W: Write> {
     filter_lists: Vec<FilterListIO<R, W>>,
 }
 
+/// This implementation for UrlInput and File is the first phase where the lists
+/// are downloaded.
 impl FilterController<UrlInput, File> {
     pub fn new(
         config: Config,
@@ -97,7 +99,7 @@ impl FilterController<UrlInput, File> {
     async fn download(&mut self) -> anyhow::Result<()> {
         let handles = process(
             &mut self.filter_lists,
-            Arc::new(|_, chunk| async { Ok(chunk) }),
+            &|_, chunk| async { Ok(chunk) },
             self.command_rx.clone(),
             self.message_tx.clone(),
         )
@@ -107,6 +109,8 @@ impl FilterController<UrlInput, File> {
     }
 }
 
+/// This implementation for FileInput and File is the second stage where URLs are
+/// being extracted
 impl FilterController<FileInput, File> {
     pub async fn run(&mut self) -> anyhow::Result<()> {
         let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
@@ -114,12 +118,12 @@ impl FilterController<FileInput, File> {
         let mut trans_path = PathBuf::from_str(&self.config.tmp_dir)?;
         trans_path.push(TRANSFORM_PATH);
 
-        self.prepare_transform(raw_path.clone(), trans_path.clone())?;
-        self.transform().await?;
+        self.prepare_extract(raw_path.clone(), trans_path.clone())?;
+        self.extract().await?;
         Ok(())
     }
 
-    fn prepare_transform(&mut self, raw_path: PathBuf, trans_path: PathBuf) -> anyhow::Result<()> {
+    fn prepare_extract(&mut self, raw_path: PathBuf, trans_path: PathBuf) -> anyhow::Result<()> {
         self.filter_lists = self
             .config
             .lists
@@ -136,20 +140,22 @@ impl FilterController<FileInput, File> {
         Ok(())
     }
 
-    /// transforms files and writes to temp files
-    async fn transform(&mut self) -> anyhow::Result<()> {
+    /// extracts URLs from lines
+    async fn extract(&mut self) -> anyhow::Result<()> {
         let handles = process(
             &mut self.filter_lists,
-            Arc::new(|flist: Arc<FilterList>, chunk: String| async move {
-                for Transformation { name, args } in &flist.transformations {
-                    match name {
-                        TransformationName::Column => {
-                            transformations::column(chunk.clone(), args)?;
-                        }
+            &|flist: Arc<FilterList>, chunk: Option<String>| async move {
+                if chunk.is_none() {
+                    return Ok(None);
+                }
+                let re = Regex::new(&flist.regex).unwrap();
+                if let Some(caps) = re.captures(&chunk.unwrap()) {
+                    if let Some(cap) = caps.get(1) {
+                        return Ok(Some(cap.as_str().to_owned() + "\n"));
                     }
                 }
-                Ok(chunk)
-            }),
+                Ok(None)
+            },
             self.command_rx.clone(),
             self.message_tx.clone(),
         )
@@ -200,15 +206,15 @@ fn create_out_file<R: Input>(
 /// applies a transformation function and writes the data to the output
 async fn process<SRC, DST, FN, RES>(
     filter_lists: &mut Vec<FilterListIO<SRC, DST>>,
-    fn_transform: Arc<FN>,
+    fn_transform: &'static FN,
     command_rx: Receiver<ChannelCommand>,
     message_tx: Sender<ChannelMessage>,
 ) -> Vec<JoinHandle<()>>
 where
     SRC: Input + Send + Sync + 'static,
-    FN: Fn(Arc<FilterList>, String) -> RES + Send + Sync + 'static,
+    FN: Fn(Arc<FilterList>, Option<String>) -> RES + Send + Sync + 'static,
     DST: Write + Send + Sync + 'static,
-    RES: Future<Output = anyhow::Result<String>> + Send + Sync + 'static,
+    RES: Future<Output = anyhow::Result<Option<String>>> + Send + Sync + 'static,
 {
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
     for FilterListIO {
@@ -222,7 +228,6 @@ where
         let writer = Arc::clone(&writer.take().unwrap());
         let filter_list = Arc::new(filter_list.clone());
         let list = Arc::clone(&filter_list);
-        let fn_trans = Arc::clone(&fn_transform);
         let cmd_rx = command_rx.clone();
         let msg_tx = message_tx.clone();
         let handle = tokio::spawn(async move {
@@ -242,12 +247,14 @@ where
                 let result = reader.lock().await.chunk().await;
                 match result {
                     Ok(Some(chunk)) => {
-                        let chunk = fn_trans(list.clone(), chunk).await.unwrap();
-                        if let Err(e) = writer.lock().await.write_all(chunk.as_bytes()) {
-                            msg_tx
-                                .send(ChannelMessage::Error(format!("{}", e)))
-                                .with_context(|| "error sending ChannelMessage")
-                                .unwrap();
+                        let chunk = fn_transform(list.clone(), Some(chunk)).await.unwrap();
+                        if let Some(chunk) = chunk {
+                            if let Err(e) = writer.lock().await.write_all(chunk.as_bytes()) {
+                                msg_tx
+                                    .send(ChannelMessage::Error(format!("{}", e)))
+                                    .with_context(|| "error sending ChannelMessage")
+                                    .unwrap();
+                            }
                         }
                     }
                     Ok(None) => {
@@ -306,7 +313,7 @@ mod tests {
             id: "".to_string(),
             source: "".to_string(),
             tags: vec![],
-            transformations: vec![],
+            regex: "".to_string(),
         };
         let mut filter_list_io: FilterListIO<TestInput, Cursor<Vec<u8>>> =
             FilterListIO::new(filter_list);
@@ -314,7 +321,7 @@ mod tests {
         filter_list_io.writer = Some(output.clone());
         let handles = process(
             &mut vec![filter_list_io],
-            Arc::new(|_, c| async { Ok(c) }),
+            &|_, c| async { Ok(c) },
             cmd_rx,
             msg_tx,
         )
