@@ -1,15 +1,14 @@
 use std::{
     fs::{self, File},
     io::Write,
+    marker::PhantomData,
     path::PathBuf,
-    str::FromStr,
     sync::Arc,
 };
 
 use anyhow::Context;
 use flume::{Receiver, Sender};
-use futures::{future::join_all, lock::Mutex, Future};
-use regex::Regex;
+use futures::{lock::Mutex, Future};
 use reqwest::Url;
 use tokio::task::JoinHandle;
 
@@ -21,9 +20,9 @@ use crate::{
 };
 
 /// Sub path for downloaded raw lists
-const RAW_PATH: &str = "raw";
+pub const RAW_PATH: &str = "raw";
 /// Sub path for transformed lists
-const TRANSFORM_PATH: &str = "transform";
+pub const TRANSFORM_PATH: &str = "transform";
 
 pub enum ChannelMessage {
     Error(String),
@@ -35,137 +34,23 @@ pub enum ChannelCommand {
     Quit,
 }
 
+/// These structs represent the stages of a program run
+pub struct StageDownload;
+pub struct StageExtract;
+pub struct StageCategorize;
+pub struct StageOutput;
+
 /// The FilterController stores the in formation needed to run the data processing
 #[derive(Debug)]
-pub struct FilterController<R: Input, W: Write> {
-    config: Config,
-    message_tx: Sender<ChannelMessage>,
-    command_rx: Receiver<ChannelCommand>,
-    filter_lists: Vec<FilterListIO<R, W>>,
+pub struct FilterController<Stage, R: Input, W: Write> {
+    pub stage: PhantomData<Stage>,
+    pub config: Config,
+    pub message_tx: Sender<ChannelMessage>,
+    pub command_rx: Receiver<ChannelCommand>,
+    pub filter_lists: Vec<FilterListIO<R, W>>,
 }
 
-/// This implementation for UrlInput and File is the first phase where the lists
-/// are downloaded.
-impl FilterController<UrlInput, File> {
-    pub fn new(
-        config: Config,
-        command_rx: Receiver<ChannelCommand>,
-        message_tx: Sender<ChannelMessage>,
-    ) -> Self {
-        Self {
-            config,
-            command_rx,
-            message_tx,
-            filter_lists: vec![],
-        }
-    }
-
-    /// Runs the data processing function with UrlInput as input source and a
-    /// file as output destination
-    pub async fn run(&mut self) -> anyhow::Result<FilterController<FileInput, File>> {
-        let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
-        raw_path.push(RAW_PATH);
-
-        self.prepare_download(raw_path.clone())?;
-        self.download().await?;
-        let transform_controller = FilterController::<FileInput, File> {
-            config: self.config.clone(),
-            command_rx: self.command_rx.clone(),
-            message_tx: self.message_tx.clone(),
-            filter_lists: vec![],
-        };
-        Ok(transform_controller)
-    }
-
-    /// Equips the FilterListIO objects with a reader and writers
-    fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
-        self.filter_lists = self
-            .config
-            .lists
-            .iter()
-            .map(|f| FilterListIO::new(f.clone()))
-            .collect();
-        self.filter_lists
-            .iter_mut()
-            .try_for_each(|l| -> anyhow::Result<()> {
-                create_input_urls(l)?;
-                create_out_file(l, raw_path.clone())?;
-                Ok(())
-            })?;
-        Ok(())
-    }
-
-    /// downloads lists to temp files
-    async fn download(&mut self) -> anyhow::Result<()> {
-        let handles = process(
-            &mut self.filter_lists,
-            &|_, chunk| async { Ok(chunk) },
-            self.command_rx.clone(),
-            self.message_tx.clone(),
-        )
-        .await;
-        join_all(handles).await;
-        Ok(())
-    }
-}
-
-/// This implementation for FileInput and File is the second stage where URLs are
-/// being extracted
-impl FilterController<FileInput, File> {
-    pub async fn run(&mut self) -> anyhow::Result<()> {
-        let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
-        raw_path.push(RAW_PATH);
-        let mut trans_path = PathBuf::from_str(&self.config.tmp_dir)?;
-        trans_path.push(TRANSFORM_PATH);
-
-        self.prepare_extract(raw_path.clone(), trans_path.clone())?;
-        self.extract().await?;
-        Ok(())
-    }
-
-    fn prepare_extract(&mut self, raw_path: PathBuf, trans_path: PathBuf) -> anyhow::Result<()> {
-        self.filter_lists = self
-            .config
-            .lists
-            .iter()
-            .map(|f| FilterListIO::new(f.clone()))
-            .collect();
-        self.filter_lists
-            .iter_mut()
-            .try_for_each(|l| -> anyhow::Result<()> {
-                get_input_file::<File>(l, raw_path.clone())?;
-                create_out_file::<FileInput>(l, trans_path.clone())?;
-                Ok(())
-            })?;
-        Ok(())
-    }
-
-    /// extracts URLs from lines
-    async fn extract(&mut self) -> anyhow::Result<()> {
-        let handles = process(
-            &mut self.filter_lists,
-            &|flist: Arc<FilterList>, chunk: Option<String>| async move {
-                if chunk.is_none() {
-                    return Ok(None);
-                }
-                let re = Regex::new(&flist.regex).unwrap();
-                if let Some(caps) = re.captures(&chunk.unwrap()) {
-                    if let Some(cap) = caps.get(1) {
-                        return Ok(Some(cap.as_str().to_owned() + "\n"));
-                    }
-                }
-                Ok(None)
-            },
-            self.command_rx.clone(),
-            self.message_tx.clone(),
-        )
-        .await;
-        join_all(handles).await;
-        Ok(())
-    }
-}
-
-fn get_input_file<W: Write>(
+pub fn get_input_file<W: Write>(
     list: &mut FilterListIO<FileInput, W>,
     base_dir: PathBuf,
 ) -> anyhow::Result<()> {
@@ -183,14 +68,14 @@ fn get_input_file<W: Write>(
     Ok(())
 }
 
-fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Result<()> {
+pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Result<()> {
     let url = Url::parse(&list.filter_list.source)?;
     let input = UrlInput::new(url);
     list.reader = Some(Arc::new(Mutex::new(input)));
     Ok(())
 }
 
-fn create_out_file<R: Input>(
+pub fn create_out_file<R: Input>(
     list: &mut FilterListIO<R, File>,
     base_dir: PathBuf,
 ) -> anyhow::Result<()> {
@@ -204,7 +89,7 @@ fn create_out_file<R: Input>(
 
 /// `process` is the main data processing function. It reads chunks from the source
 /// applies a transformation function and writes the data to the output
-async fn process<SRC, DST, FN, RES>(
+pub async fn process<SRC, DST, FN, RES>(
     filter_lists: &mut Vec<FilterListIO<SRC, DST>>,
     fn_transform: &'static FN,
     command_rx: Receiver<ChannelCommand>,
@@ -279,6 +164,7 @@ where
 mod tests {
     use crate::filter_list::FilterList;
     use async_trait::async_trait;
+    use futures::future::join_all;
     use std::io::{Cursor, Read};
 
     use super::*;

@@ -9,7 +9,7 @@ use async_trait::async_trait;
 
 /// UrlInput downloads data from an Url
 #[derive(Debug)]
-pub(crate) struct FileInput {
+pub struct FileInput {
     path: PathBuf,
     handle: Option<BufReader<File>>,
 }

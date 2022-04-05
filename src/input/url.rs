@@ -4,7 +4,7 @@ use reqwest::Url;
 
 /// UrlInput downloads data from an Url
 #[derive(Debug)]
-pub(crate) struct UrlInput {
+pub struct UrlInput {
     url: Url,
     response: Option<reqwest::Response>,
 }
