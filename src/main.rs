@@ -57,11 +57,24 @@ async fn main() -> anyhow::Result<()> {
     let mut transform_controller = match download_controller.run().await {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("{}", e);
+            eprintln!("{:?}", e);
             exit(1);
         }
     };
-    transform_controller.run().await?;
+    let mut categorize_controller = match transform_controller.run().await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{:?}", e);
+            exit(1);
+        }
+    };
+    match categorize_controller.run().await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{:?}", e);
+            exit(1);
+        }
+    };
 
     Ok(())
 }

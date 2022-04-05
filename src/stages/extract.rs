@@ -5,8 +5,8 @@ use regex::Regex;
 
 use crate::{
     filter_controller::{
-        create_out_file, get_input_file, process, FilterController, StageExtract, RAW_PATH,
-        TRANSFORM_PATH,
+        create_out_file, get_input_file, process, FilterController, StageCategorize, StageExtract,
+        RAW_PATH, TRANSFORM_PATH,
     },
     filter_list::FilterList,
     filter_list_io::FilterListIO,
@@ -16,7 +16,9 @@ use crate::{
 /// This implementation for FileInput and File is the second stage where URLs are
 /// being extracted
 impl FilterController<StageExtract, FileInput, File> {
-    pub async fn run(&mut self) -> anyhow::Result<()> {
+    pub async fn run(
+        &mut self,
+    ) -> anyhow::Result<FilterController<StageCategorize, FileInput, File>> {
         let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
         raw_path.push(RAW_PATH);
         let mut trans_path = PathBuf::from_str(&self.config.tmp_dir)?;
@@ -24,7 +26,14 @@ impl FilterController<StageExtract, FileInput, File> {
 
         self.prepare_extract(raw_path.clone(), trans_path.clone())?;
         self.extract().await?;
-        Ok(())
+        let categorize_controller = FilterController::<StageCategorize, FileInput, File> {
+            stage: PhantomData,
+            config: self.config.clone(),
+            command_rx: self.command_rx.clone(),
+            message_tx: self.message_tx.clone(),
+            filter_lists: vec![],
+        };
+        Ok(categorize_controller)
     }
 
     fn prepare_extract(&mut self, raw_path: PathBuf, trans_path: PathBuf) -> anyhow::Result<()> {

@@ -23,6 +23,8 @@ use crate::{
 pub const RAW_PATH: &str = "raw";
 /// Sub path for transformed lists
 pub const TRANSFORM_PATH: &str = "transform";
+/// Sub path for the assembled categorized lists
+pub const CATEGORIZE_PATH: &str = "categorize";
 
 pub enum ChannelMessage {
     Error(String),
