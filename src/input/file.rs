@@ -8,7 +8,7 @@ use crate::input::Input;
 use anyhow::Context;
 use async_trait::async_trait;
 
-/// UrlInput downloads data from an Url
+/// FileInput reads data from a File
 #[derive(Debug)]
 pub struct FileInput {
     path: PathBuf,

@@ -9,6 +9,12 @@ use crate::{
     input::{file::FileInput, Input},
 };
 
+/// lua_adapter translates the extracted URLs int a lua module format
+///
+/// * `reader`: data source that implements the Input trait
+/// * `writer`: data sink that implements std::io::Write
+/// * `cmd_rx`: channel listening for commands
+/// * `msg_tx`: channel for messaging
 pub async fn lua_adapter(
     reader: Arc<Mutex<FileInput>>,
     writer: Arc<Mutex<File>>,

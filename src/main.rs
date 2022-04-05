@@ -47,6 +47,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
+    // crate configuration
     let config = match Config::load(Path::new("./config.json")) {
         Err(e) => {
             println!("{:?}", e);
@@ -54,21 +55,29 @@ async fn main() -> anyhow::Result<()> {
         }
         Ok(c) => c,
     };
+
+    // the lists are going through a process of four stages
     let mut download_controller = FilterController::new(config, cmd_rx, msg_tx);
-    let mut transform_controller = match download_controller.run().await {
+
+    // start the processing chain by downloading the filter lists
+    let mut extract_controller = match download_controller.run().await {
         Ok(c) => c,
         Err(e) => {
             eprintln!("{:?}", e);
             exit(1);
         }
     };
-    let mut categorize_controller = match transform_controller.run().await {
+
+    // the second stage extracts the URLs from the downloaded lists which come in heterogeneous formats
+    let mut categorize_controller = match extract_controller.run().await {
         Ok(c) => c,
         Err(e) => {
             eprintln!("{:?}", e);
             exit(1);
         }
     };
+
+    // the third stage assembles the URLs into lists corresponding to the tags set in the configuration file
     let mut output_controller = match categorize_controller.run().await {
         Ok(c) => c,
         Err(e) => {
@@ -76,6 +85,8 @@ async fn main() -> anyhow::Result<()> {
             exit(1);
         }
     };
+
+    // the fourth stage finally transforms the category lists into the desired output format
     match output_controller.run().await {
         Ok(c) => c,
         Err(e) => {

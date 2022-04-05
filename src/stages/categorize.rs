@@ -20,7 +20,10 @@ use crate::{
     io::filter_list_io::FilterListIO,
 };
 
+/// This stage assembles the category lists from the data extracted in the previous stage
+/// A category corresponds to a tag on a list.
 impl FilterController<StageCategorize, FileInput, File> {
+    /// runs the categorize stage and return controller for the output stage
     pub async fn run(&mut self) -> anyhow::Result<FilterController<StageOutput, FileInput, File>> {
         let mut extract_path = PathBuf::from_str(&self.config.tmp_dir)?;
         extract_path.push(TRANSFORM_PATH);
@@ -40,6 +43,7 @@ impl FilterController<StageCategorize, FileInput, File> {
         Ok(categorize_controller)
     }
 
+    /// extracts all existing tags from the filter list configuration
     fn get_tags(&self) -> Vec<String> {
         let mut tags: Vec<String> = Vec::new();
         for list_io in self.filter_lists.iter() {
@@ -52,6 +56,10 @@ impl FilterController<StageCategorize, FileInput, File> {
         tags
     }
 
+    /// Attaches the source file reader to the FilterListIO
+    ///
+    /// * `extract_path`: The directory where the extracted data from the previous
+    ///                   step was stored
     fn prepare_categorize(&mut self, extract_path: PathBuf) -> anyhow::Result<()> {
         self.filter_lists = self
             .config
@@ -69,6 +77,10 @@ impl FilterController<StageCategorize, FileInput, File> {
         Ok(())
     }
 
+    /// assembles the category lists from the extracted URLs according to the existing tags
+    /// in the configuration file
+    ///
+    /// * `categorize_path`: the file system path where the resulting lists are stored
     async fn categorize(&mut self, categorize_path: PathBuf) -> anyhow::Result<()> {
         fs::create_dir_all(&categorize_path).with_context(|| "could not create out directory")?;
         let mut handles: Vec<JoinHandle<()>> = vec![];

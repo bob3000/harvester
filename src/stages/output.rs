@@ -16,6 +16,7 @@ use crate::{
 };
 
 impl FilterController<StageOutput, FileInput, File> {
+    /// Runs the output stage
     pub async fn run(&mut self) -> anyhow::Result<()> {
         let mut categorize_path = PathBuf::from_str(&self.config.tmp_dir)?;
         categorize_path.push(CATEGORIZE_PATH);
@@ -26,6 +27,7 @@ impl FilterController<StageOutput, FileInput, File> {
         Ok(())
     }
 
+    /// returns a list of all existing tags taken from the configuration file
     fn get_tags(&self) -> Vec<String> {
         let mut tags: Vec<String> = Vec::new();
         for list in self.config.lists.iter() {
@@ -38,6 +40,10 @@ impl FilterController<StageOutput, FileInput, File> {
         tags
     }
 
+    /// Attaches the readers and writers to the CategoryListIO objects
+    ///
+    /// * `categorize_path`: the file system path to where the category lists where stored
+    /// * `output_path`: the file system path for the lists in the final result format
     fn prepare_output(
         &mut self,
         categorize_path: PathBuf,
@@ -77,6 +83,7 @@ impl FilterController<StageOutput, FileInput, File> {
         Ok(())
     }
 
+    /// generates the final result lists
     async fn output(&mut self) -> anyhow::Result<()> {
         let mut handles: Vec<JoinHandle<()>> = vec![];
         for list in self.category_lists.iter_mut() {

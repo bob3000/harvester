@@ -13,8 +13,10 @@ use self::lua::lua_adapter;
 
 mod lua;
 
+/// OutputType represents a result format for the created block lists
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum OutputType {
+    /// Lua module format
     Lua,
 }
 

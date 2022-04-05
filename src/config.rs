@@ -17,6 +17,8 @@ pub struct Config {
 
 impl Config {
     /// Populates the Config struct from a json file
+    ///
+    /// * `path`: file system path the the configuration file
     pub fn load(path: &Path) -> anyhow::Result<Self> {
         let contents = fs::read_to_string(path)?;
         let config: Config =

@@ -54,6 +54,12 @@ pub struct FilterController<Stage, R: Input + Send + Sync, W: Write + Send + Syn
     pub category_lists: Vec<CategoryListIO<R, W>>,
 }
 
+/// Searches the file system in the given base directory for a file named after the list id. If the
+/// file was found it's being opened for reading and the reader is attached to the FilterListIO or
+/// otherwise returns an error.
+///
+/// * `list`: the FilterListIO where the reader
+/// * `base_dir`: the file system path to be searched
 pub fn get_input_file<W: Write + Send + Sync>(
     list: &mut FilterListIO<FileInput, W>,
     base_dir: PathBuf,
@@ -72,6 +78,10 @@ pub fn get_input_file<W: Write + Send + Sync>(
     Ok(())
 }
 
+/// Turns the source string from the configuration into an Url object and attaches
+/// it to the FilterListIO object
+///
+/// * `list`: the FilterListIO object to receive the URL object
 pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Result<()> {
     let url = Url::parse(&list.filter_list.source)?;
     let input = UrlInput::new(url);
@@ -79,6 +89,11 @@ pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Res
     Ok(())
 }
 
+/// Creates and output file and it's parent directories, opens the file for writing
+/// and attaches it to the given FilterListIO object
+///
+/// * `list`: the FilterListIO object to receive the writer
+/// * `base_dir`: the base directory where the output directory is being created
 pub fn create_out_file<R: Input + Send + Sync>(
     list: &mut FilterListIO<R, File>,
     base_dir: PathBuf,
@@ -93,6 +108,11 @@ pub fn create_out_file<R: Input + Send + Sync>(
 
 /// `process` is the main data processing function. It reads chunks from the source
 /// applies a transformation function and writes the data to the output
+///
+/// * `filter_lists`: a list of FilterListIO to be processed
+/// * `fn_transform`: the function to apply to every chunk the FilterListIO's reader returns
+/// * `command_rx`: a channel receiver listening for commands
+/// * `message_tx`: a channel sender for messaging purpose
 pub async fn process<SRC, DST, FN, RES>(
     filter_lists: &mut Vec<FilterListIO<SRC, DST>>,
     fn_transform: &'static FN,
@@ -173,6 +193,7 @@ mod tests {
 
     use super::*;
 
+    /// TestInput implements the Input trait using Cursors
     #[derive(Debug)]
     struct TestInput {
         cursor: Cursor<String>,
@@ -197,23 +218,32 @@ mod tests {
     }
 
     #[tokio::test]
+    /// tests the `process` function using the TestInput to avoid writing files
     async fn test_process() {
+        // create input data
         let input_data = "line one\nline two\n".to_string();
         let cursor = Cursor::new(input_data.clone());
         let input = Arc::new(Mutex::new(TestInput { cursor }));
+        // set up output sink
         let output = Arc::new(Mutex::new(Cursor::new(vec![0, 32])));
         let (_, cmd_rx): (Sender<ChannelCommand>, Receiver<ChannelCommand>) = flume::unbounded();
         let (msg_tx, _): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
+
+        // apply the data to the FilterList object
         let filter_list = FilterList {
             id: "".to_string(),
             source: "".to_string(),
             tags: vec![],
             regex: "".to_string(),
         };
+
+        // wrap the Filterlist in the FilterListIO object
         let mut filter_list_io: FilterListIO<TestInput, Cursor<Vec<u8>>> =
             FilterListIO::new(filter_list);
         filter_list_io.reader = Some(input);
         filter_list_io.writer = Some(output.clone());
+
+        // process the data with a transform function just forwarding the data
         let handles = process(
             &mut vec![filter_list_io],
             &|_, c| async { Ok(c) },
@@ -223,6 +253,8 @@ mod tests {
         .await;
         join_all(handles).await;
         let o = output.lock().await.clone().into_inner();
+
+        // the data in the out put should be the same as the input data
         assert!(String::from_utf8_lossy(&o).starts_with(&input_data));
     }
 }

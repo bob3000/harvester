@@ -16,6 +16,7 @@ use crate::{
 /// This implementation for FileInput and File is the second stage where URLs are
 /// being extracted
 impl FilterController<StageExtract, FileInput, File> {
+    /// Runs the extract stage and returns the controller for the categorize stage
     pub async fn run(
         &mut self,
     ) -> anyhow::Result<FilterController<StageCategorize, FileInput, File>> {
@@ -37,7 +38,11 @@ impl FilterController<StageExtract, FileInput, File> {
         Ok(categorize_controller)
     }
 
-    fn prepare_extract(&mut self, raw_path: PathBuf, trans_path: PathBuf) -> anyhow::Result<()> {
+    /// Attaches readers and writers to the FilterListIO objects
+    ///
+    /// * `raw_path`: the file system path to where the downloaded lists were stored
+    /// * `extract_path`: the file system path to where the extracted URLs are written to
+    fn prepare_extract(&mut self, raw_path: PathBuf, extract_path: PathBuf) -> anyhow::Result<()> {
         self.filter_lists = self
             .config
             .lists
@@ -48,13 +53,13 @@ impl FilterController<StageExtract, FileInput, File> {
             .iter_mut()
             .try_for_each(|l| -> anyhow::Result<()> {
                 get_input_file::<File>(l, raw_path.clone())?;
-                create_out_file::<FileInput>(l, trans_path.clone())?;
+                create_out_file::<FileInput>(l, extract_path.clone())?;
                 Ok(())
             })?;
         Ok(())
     }
 
-    /// extracts URLs from lines
+    /// extracts URLs from lines by employing the regex given in the configuration file
     async fn extract(&mut self) -> anyhow::Result<()> {
         let handles = process(
             &mut self.filter_lists,
