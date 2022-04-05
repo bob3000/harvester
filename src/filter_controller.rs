@@ -13,11 +13,11 @@ use reqwest::Url;
 use tokio::task::JoinHandle;
 
 use crate::{
-    category_list_io::CategoryListIO,
     config::Config,
     filter_list::FilterList,
-    filter_list_io::FilterListIO,
     input::{file::FileInput, url::UrlInput, Input},
+    io::category_list_io::CategoryListIO,
+    io::filter_list_io::FilterListIO,
 };
 
 /// Sub path for downloaded raw lists

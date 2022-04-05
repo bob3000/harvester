@@ -16,8 +16,8 @@ use crate::{
         get_input_file, ChannelCommand, ChannelMessage, FilterController, StageCategorize,
         StageOutput, CATEGORIZE_PATH, TRANSFORM_PATH,
     },
-    filter_list_io::FilterListIO,
     input::{file::FileInput, Input},
+    io::filter_list_io::FilterListIO,
 };
 
 impl FilterController<StageCategorize, FileInput, File> {

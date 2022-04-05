@@ -9,8 +9,8 @@ use crate::{
         create_input_urls, create_out_file, process, ChannelCommand, ChannelMessage,
         FilterController, StageDownload, StageExtract, RAW_PATH,
     },
-    filter_list_io::FilterListIO,
     input::{file::FileInput, url::UrlInput},
+    io::filter_list_io::FilterListIO,
 };
 
 /// This implementation for UrlInput and File is the first phase where the lists

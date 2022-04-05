@@ -9,8 +9,8 @@ use crate::{
         RAW_PATH, TRANSFORM_PATH,
     },
     filter_list::FilterList,
-    filter_list_io::FilterListIO,
     input::file::FileInput,
+    io::filter_list_io::FilterListIO,
 };
 
 /// This implementation for FileInput and File is the second stage where URLs are

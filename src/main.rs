@@ -1,9 +1,8 @@
-mod category_list_io;
 mod config;
 mod filter_controller;
 mod filter_list;
-mod filter_list_io;
 mod input;
+mod io;
 mod output;
 mod stages;
 

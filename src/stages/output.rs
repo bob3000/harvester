@@ -10,9 +10,9 @@ use futures::{future::join_all, lock::Mutex};
 use tokio::task::JoinHandle;
 
 use crate::{
-    category_list_io::CategoryListIO,
     filter_controller::{FilterController, StageOutput, CATEGORIZE_PATH},
     input::file::FileInput,
+    io::category_list_io::CategoryListIO,
 };
 
 impl FilterController<StageOutput, FileInput, File> {
