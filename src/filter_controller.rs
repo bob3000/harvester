@@ -13,6 +13,7 @@ use reqwest::Url;
 use tokio::task::JoinHandle;
 
 use crate::{
+    category_list_io::CategoryListIO,
     config::Config,
     filter_list::FilterList,
     filter_list_io::FilterListIO,
@@ -44,15 +45,16 @@ pub struct StageOutput;
 
 /// The FilterController stores the in formation needed to run the data processing
 #[derive(Debug)]
-pub struct FilterController<Stage, R: Input, W: Write> {
+pub struct FilterController<Stage, R: Input + Send + Sync, W: Write + Send + Sync> {
     pub stage: PhantomData<Stage>,
     pub config: Config,
     pub message_tx: Sender<ChannelMessage>,
     pub command_rx: Receiver<ChannelCommand>,
     pub filter_lists: Vec<FilterListIO<R, W>>,
+    pub category_lists: Vec<CategoryListIO<R, W>>,
 }
 
-pub fn get_input_file<W: Write>(
+pub fn get_input_file<W: Write + Send + Sync>(
     list: &mut FilterListIO<FileInput, W>,
     base_dir: PathBuf,
 ) -> anyhow::Result<()> {
@@ -77,7 +79,7 @@ pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Res
     Ok(())
 }
 
-pub fn create_out_file<R: Input>(
+pub fn create_out_file<R: Input + Send + Sync>(
     list: &mut FilterListIO<R, File>,
     base_dir: PathBuf,
 ) -> anyhow::Result<()> {
@@ -186,6 +188,11 @@ mod tests {
             } else {
                 Ok(Some(String::from_utf8(buf.to_vec()).unwrap()))
             }
+        }
+
+        async fn reset(&mut self) -> anyhow::Result<()> {
+            self.cursor.set_position(0);
+            Ok(())
         }
     }
 

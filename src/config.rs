@@ -3,7 +3,7 @@ use std::{fs, path::Path};
 use anyhow::Context;
 use serde::{Deserialize, Serialize};
 
-use crate::filter_list::FilterList;
+use crate::{filter_list::FilterList, output::OutputType};
 
 /// Config contains all relevant information to start the data processing.
 /// Relevant information is considered most of all data sources and destinations
@@ -12,6 +12,7 @@ pub struct Config {
     pub lists: Vec<FilterList>,
     pub tmp_dir: String,
     pub out_dir: String,
+    pub out_format: OutputType,
 }
 
 impl Config {
@@ -24,11 +25,13 @@ impl Config {
             lists,
             tmp_dir,
             out_dir,
+            out_format,
         } = config;
         Ok(Self {
             lists,
             tmp_dir,
             out_dir,
+            out_format,
         })
     }
 }

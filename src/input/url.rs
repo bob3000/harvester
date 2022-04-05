@@ -33,4 +33,11 @@ impl Input for UrlInput {
             Err(e) => Err(anyhow::anyhow!(e)),
         }
     }
+
+    async fn reset(&mut self) -> anyhow::Result<()> {
+        if self.response.is_none() {
+            self.response = Some(reqwest::get(self.url.clone()).await?);
+        }
+        Ok(())
+    }
 }

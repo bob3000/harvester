@@ -32,6 +32,7 @@ impl FilterController<StageExtract, FileInput, File> {
             command_rx: self.command_rx.clone(),
             message_tx: self.message_tx.clone(),
             filter_lists: vec![],
+            category_lists: vec![],
         };
         Ok(categorize_controller)
     }

@@ -27,6 +27,7 @@ impl FilterController<StageDownload, UrlInput, File> {
             command_rx,
             message_tx,
             filter_lists: vec![],
+            category_lists: vec![],
         }
     }
 
@@ -38,14 +39,15 @@ impl FilterController<StageDownload, UrlInput, File> {
 
         self.prepare_download(raw_path.clone())?;
         self.download().await?;
-        let transform_controller = FilterController::<StageExtract, FileInput, File> {
+        let extract_controller = FilterController::<StageExtract, FileInput, File> {
             stage: PhantomData,
             config: self.config.clone(),
             command_rx: self.command_rx.clone(),
             message_tx: self.message_tx.clone(),
             filter_lists: vec![],
+            category_lists: vec![],
         };
-        Ok(transform_controller)
+        Ok(extract_controller)
     }
 
     /// Equips the FilterListIO objects with a reader and writers

@@ -1,8 +1,10 @@
+mod category_list_io;
 mod config;
 mod filter_controller;
 mod filter_list;
 mod filter_list_io;
 mod input;
+mod output;
 mod stages;
 
 use std::{path::Path, process::exit};
@@ -68,13 +70,19 @@ async fn main() -> anyhow::Result<()> {
             exit(1);
         }
     };
-    match categorize_controller.run().await {
+    let mut output_controller = match categorize_controller.run().await {
         Ok(c) => c,
         Err(e) => {
             eprintln!("{:?}", e);
             exit(1);
         }
     };
-
+    match output_controller.run().await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("{:?}", e);
+            exit(1);
+        }
+    };
     Ok(())
 }

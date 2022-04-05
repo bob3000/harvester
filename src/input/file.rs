@@ -1,10 +1,11 @@
 use std::{
     fs::File,
-    io::{BufRead, BufReader},
+    io::{BufRead, BufReader, Seek, SeekFrom},
     path::PathBuf,
 };
 
 use crate::input::Input;
+use anyhow::Context;
 use async_trait::async_trait;
 
 /// UrlInput downloads data from an Url
@@ -34,5 +35,18 @@ impl Input for FileInput {
             Ok(_) => Ok(None),
             Err(e) => Err(anyhow::anyhow!(e)),
         }
+    }
+
+    async fn reset(&mut self) -> anyhow::Result<()> {
+        if self.handle.is_none() {
+            let f = File::open(self.path.clone())?;
+            self.handle = Some(BufReader::new(f));
+        }
+        self.handle
+            .as_mut()
+            .unwrap()
+            .seek(SeekFrom::Start(0))
+            .with_context(|| "could not seek to beginning of file")?;
+        Ok(())
     }
 }
