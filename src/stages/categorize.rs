@@ -102,6 +102,7 @@ impl FilterController<StageCategorize, FileInput, File> {
                 incl.reader.as_mut().unwrap().lock().await.reset().await?;
                 while let Ok(Some(chunk)) = incl.reader.as_mut().unwrap().lock().await.chunk().await
                 {
+                    // insert the URLs into a BTreeSet to deduplicate and sort the data
                     tree_set.insert(chunk);
                 }
             }
