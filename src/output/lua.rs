@@ -15,6 +15,7 @@ pub async fn lua_adapter(
     cmd_rx: Receiver<ChannelCommand>,
     msg_tx: Sender<ChannelMessage>,
 ) {
+    let mut worte_header = false;
     loop {
         // stop task on quit message
         if let Ok(cmd) = cmd_rx.try_recv() {
@@ -27,9 +28,21 @@ pub async fn lua_adapter(
                 }
             }
         }
-        // let r = reader.lock().await.chunk().await;
+
+        // write header line
+        if !worte_header {
+            if let Err(e) = writer.lock().await.write_all("return {\n".as_bytes()) {
+                msg_tx
+                    .send(ChannelMessage::Error(format!("{}", e)))
+                    .with_context(|| "error writing out file")
+                    .unwrap();
+            }
+            worte_header = true;
+        }
+
         match reader.lock().await.chunk().await {
             Ok(Some(chunk)) => {
+                let chunk = format!("  \"{}\",\n", chunk.trim_end());
                 if let Err(e) = writer.lock().await.write_all(chunk.as_bytes()) {
                     msg_tx
                         .send(ChannelMessage::Error(format!("{}", e)))
@@ -37,7 +50,16 @@ pub async fn lua_adapter(
                         .unwrap();
                 }
             }
-            Ok(None) => break,
+            Ok(None) => {
+                // write footer line
+                if let Err(e) = writer.lock().await.write_all("}".as_bytes()) {
+                    msg_tx
+                        .send(ChannelMessage::Error(format!("{}", e)))
+                        .with_context(|| "error writing out file")
+                        .unwrap();
+                }
+                break;
+            }
             Err(e) => {
                 msg_tx
                     .send(ChannelMessage::Error(format!("{}", e)))
@@ -48,4 +70,3 @@ pub async fn lua_adapter(
         }
     }
 }
-
