@@ -9,8 +9,9 @@ use crate::{
     input::file::FileInput,
 };
 
-use self::lua::lua_adapter;
+use self::{hostsfile::hostsfile_adapter, lua::lua_adapter};
 
+mod hostsfile;
 mod lua;
 
 /// OutputType represents a result format for the created block lists
@@ -18,6 +19,8 @@ mod lua;
 pub enum OutputType {
     /// Lua module format
     Lua,
+    /// Hostsfile format as found in /etc/hosts
+    Hostsfile,
 }
 
 impl OutputType {
@@ -28,6 +31,11 @@ impl OutputType {
         command_rx: Receiver<ChannelCommand>,
         message_tx: Sender<ChannelMessage>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
-        Box::pin(lua_adapter(reader, writer, command_rx, message_tx))
+        match self {
+            OutputType::Lua => Box::pin(lua_adapter(reader, writer, command_rx, message_tx)),
+            OutputType::Hostsfile => {
+                Box::pin(hostsfile_adapter(reader, writer, command_rx, message_tx))
+            }
+        }
     }
 }

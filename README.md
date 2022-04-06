@@ -9,8 +9,24 @@ application they are supposed to be compatible with.
 Harvester allows you the to download the lists from various sources and transform
 them into a common output format.
 
-Currently the only supported output format is the lua module format which can
-be used with PowerDNS.
+## Features
+
+### Output formats
+
+- `Hostsfile`: hosts file format as found in `/etc/hosts`
+    Example output:
+    ```
+    0.0.0.0 malicious.com
+    0.0.0.0 unwanted.net
+    ```
+- `Lua`: a lua module returning a table
+    Example output:
+    ```
+    return {
+      "malicious.com",
+      "unwanted.net",
+    }
+    ```
 
 ## Getting started
 
