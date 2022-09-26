@@ -20,13 +20,13 @@ impl UrlInput {
 
 #[async_trait]
 impl Input for UrlInput {
-    async fn chunk(&mut self) -> anyhow::Result<Option<String>> {
+    async fn chunk(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
         if self.response.is_none() {
             self.response = Some(reqwest::get(self.url.clone()).await?);
         }
         match self.response.as_mut().unwrap().chunk().await {
             Ok(Some(r)) => {
-                let r = String::from_utf8(r.to_vec())?;
+                let r = r.to_vec();
                 Ok(Some(r))
             }
             Ok(None) => Ok(None),
