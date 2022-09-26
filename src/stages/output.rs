@@ -68,7 +68,7 @@ impl FilterController<StageOutput, FileInput, File> {
                         false
                     })
                     .ok_or_else(|| anyhow::anyhow!("file not found: {}", list.name))??;
-                list.reader = Some(Arc::new(Mutex::new(FileInput::new(entry.path()))));
+                list.reader = Some(Arc::new(Mutex::new(FileInput::new(entry.path(), None))));
 
                 // set writers
                 let mut out_path = output_path.clone();

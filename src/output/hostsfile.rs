@@ -37,7 +37,14 @@ pub async fn hostsfile_adapter(
 
         match reader.lock().await.chunk().await {
             Ok(Some(chunk)) => {
-                let chunk = format!("0.0.0.0 {}\n", chunk.trim_end());
+                let str_chunk = match String::from_utf8(chunk) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        anyhow::anyhow!("{}", e);
+                        continue;
+                    }
+                };
+                let chunk = format!("0.0.0.0 {}\n", str_chunk.trim_end());
                 if let Err(e) = writer.lock().await.write_all(chunk.as_bytes()) {
                     msg_tx
                         .send(ChannelMessage::Error(format!("{}", e)))
