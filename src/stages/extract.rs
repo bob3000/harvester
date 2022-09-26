@@ -52,7 +52,7 @@ impl FilterController<StageExtract, FileInput, File> {
         self.filter_lists
             .iter_mut()
             .try_for_each(|l| -> anyhow::Result<()> {
-                get_input_file::<File>(l, raw_path.clone())?;
+                get_input_file::<File>(l, raw_path.clone(), l.filter_list.compression.clone())?;
                 create_out_file::<FileInput>(l, extract_path.clone())?;
                 Ok(())
             })?;
@@ -63,15 +63,20 @@ impl FilterController<StageExtract, FileInput, File> {
     async fn extract(&mut self) -> anyhow::Result<()> {
         let handles = process(
             &mut self.filter_lists,
-            &|flist: Arc<FilterList>, chunk: Option<String>| async move {
+            &|flist: Arc<FilterList>, chunk: Option<Vec<u8>>| async move {
                 if chunk.is_none() {
                     return Ok(None);
                 }
-                let re = Regex::new(&flist.regex).unwrap();
-                if let Some(caps) = re.captures(&chunk.unwrap()) {
-                    if let Some(cap) = caps.get(1) {
-                        return Ok(Some(cap.as_str().to_owned() + "\n"));
+                let str_chunk = match String::from_utf8(chunk.unwrap()) {
+                    Ok(s) => s,
+                    Err(e) => {
+                        return Err(anyhow::anyhow!("Error: {}", e));
                     }
+                };
+                let re = Regex::new(&flist.regex).unwrap();
+                if let Some(caps) = re.captures(&str_chunk) && let Some(cap) = caps.get(1) {
+                    let result = cap.as_str().to_owned() + "\n";
+                    return Ok(Some(result.as_bytes().to_owned()));
                 }
                 Ok(None)
             },

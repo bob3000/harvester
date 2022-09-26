@@ -1,3 +1,4 @@
+#![feature(let_chains)]
 mod config;
 mod filter_controller;
 mod filter_list;
