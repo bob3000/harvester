@@ -7,13 +7,13 @@ use crate::input::Input;
 /// CategoryListIO contains a reader and a writer used to manipulate category
 /// wise assembled filter lists
 #[derive(Debug)]
-pub struct CategoryListIO<R: Input + Send + Sync, W: Write + Send + Sync> {
+pub struct CategoryListIO<R: Input + Send, W: Write + Send> {
     pub name: String,
     pub reader: Option<Arc<Mutex<R>>>,
     pub writer: Option<Arc<Mutex<W>>>,
 }
 
-impl<R: Input + Send + Sync, W: Write + Send + Sync> CategoryListIO<R, W> {
+impl<R: Input + Send, W: Write + Send> CategoryListIO<R, W> {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),

@@ -49,7 +49,7 @@ pub struct StageOutput;
 
 /// The FilterController stores the in formation needed to run the data processing
 #[derive(Debug)]
-pub struct FilterController<Stage, R: Input + Send + Sync, W: Write + Send + Sync> {
+pub struct FilterController<Stage, R: Input + Send, W: Write + Send> {
     pub stage: PhantomData<Stage>,
     pub config: Config,
     pub message_tx: Sender<ChannelMessage>,
@@ -64,7 +64,7 @@ pub struct FilterController<Stage, R: Input + Send + Sync, W: Write + Send + Syn
 ///
 /// * `list`: the FilterListIO where the reader
 /// * `base_dir`: the file system path to be searched
-pub fn get_input_file<W: Write + Send + Sync>(
+pub fn get_input_file<W: Write + Send>(
     list: &mut FilterListIO<FileInput, W>,
     base_dir: PathBuf,
     compression: Option<Compression>,
@@ -102,7 +102,7 @@ pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Res
 ///
 /// * `list`: the FilterListIO object to receive the writer
 /// * `base_dir`: the base directory where the output directory is being created
-pub fn create_out_file<R: Input + Send + Sync>(
+pub fn create_out_file<R: Input + Send>(
     list: &mut FilterListIO<R, File>,
     base_dir: PathBuf,
 ) -> anyhow::Result<()> {
@@ -128,9 +128,9 @@ pub async fn process<SRC, DST, FN, RES>(
     message_tx: Sender<ChannelMessage>,
 ) -> Vec<JoinHandle<()>>
 where
-    SRC: Input + Send + Sync + 'static,
+    SRC: Input + Send + 'static,
     FN: Fn(Arc<FilterList>, Option<Vec<u8>>) -> RES + Send + Sync + 'static,
-    DST: Write + Send + Sync + 'static,
+    DST: Write + Send + 'static,
     RES: Future<Output = anyhow::Result<Option<Vec<u8>>>> + Send + Sync + 'static,
 {
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
