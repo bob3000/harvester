@@ -1,15 +1,16 @@
-use std::{
-    fs::File,
-    io::{BufRead, BufReader, Read},
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
 
 use crate::input::Input;
 use anyhow::Context;
+use async_compression::tokio::bufread::GzipDecoder;
 use async_trait::async_trait;
-use flate2::read::GzDecoder;
+use futures::StreamExt;
 use serde::{Deserialize, Serialize};
-use tar::Archive;
+use tokio::{
+    fs::File,
+    io::{AsyncBufReadExt, AsyncReadExt, BufReader},
+};
+use tokio_tar::{Archive, Entry};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "type", content = "archive_list_file")]
@@ -20,8 +21,8 @@ pub enum Compression {
 
 pub enum Handle {
     File(BufReader<File>),
-    Gz(GzDecoder<File>),
-    TarGz(Archive<GzDecoder<File>>),
+    Gz(GzipDecoder<BufReader<File>>),
+    TarGz(Entry<Archive<GzipDecoder<BufReader<File>>>>),
 }
 
 // impl Read for Handle {
@@ -50,8 +51,8 @@ impl FileInput {
         }
     }
 
-    fn init_handle(&mut self) -> anyhow::Result<()> {
-        let f = File::open(self.path.clone()).with_context(|| {
+    async fn init_handle(&mut self) -> anyhow::Result<()> {
+        let f = File::open(self.path.clone()).await.with_context(|| {
             format!(
                 "unable to open file {}",
                 self.path
@@ -63,13 +64,27 @@ impl FileInput {
         })?;
         match &self.compression {
             Some(Compression::Gz) => {
-                let gz = GzDecoder::new(f);
+                let gz = GzipDecoder::new(BufReader::new(f));
                 self.handle = Some(Handle::Gz(gz));
             }
-            Some(Compression::TarGz(_file_name)) => {
-                let gz = GzDecoder::new(f);
-                let archive = Archive::new(gz);
-                self.handle = Some(Handle::TarGz(archive));
+            Some(Compression::TarGz(wanted_path_str)) => {
+                let gz = GzipDecoder::new(BufReader::new(f));
+                let mut archive = Archive::new(gz);
+
+                let path_wanted = Path::new(wanted_path_str);
+                let mut entries = archive.entries()?;
+                while let Some(entry_result) = entries.next().await {
+                    if let Ok(entry) = entry_result
+                        && let Ok(path) = entry.path()
+                        && path == path_wanted
+                    {
+                        println!("found path: {:?}", path);
+                        self.handle = Some(Handle::TarGz(entry));
+                    }
+                }
+                if self.handle.is_none() {
+                    return Err(anyhow::anyhow!("specified list file not found in archive"));
+                }
             }
             None => self.handle = Some(Handle::File(BufReader::new(f))),
         }
@@ -81,61 +96,37 @@ impl FileInput {
 impl Input for FileInput {
     async fn chunk(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
         if self.handle.is_none() {
-            self.init_handle()?;
+            self.init_handle().await?;
         }
         let mut buf = [0; 1024];
         let mut str_buf = String::new();
         match self.handle.as_mut().unwrap() {
-            Handle::File(file) => match file.read_line(&mut str_buf) {
+            Handle::File(file) => match file.read_line(&mut str_buf).await {
                 Ok(n) if n > 0 => Ok(Some(str_buf.as_bytes().to_vec())),
                 Ok(n) if n == 0 => Ok(None),
                 Ok(_) => Ok(None),
                 Err(e) => Err(anyhow::anyhow!("Error reading line from file: {}", e)),
             },
-            Handle::Gz(archive) => match archive.read(&mut buf) {
-                Ok(n) if n > 0 => Ok(Some(Vec::from(buf))),
+            Handle::Gz(archive) => match archive.read(&mut buf[..]).await {
+                Ok(n) if n > 0 => {
+                    println!("reading {:?}", buf);
+                    Ok(Some(Vec::from(&buf[..n])))
+                }
                 Ok(n) if n == 0 => Ok(None),
                 Ok(_) => Ok(None),
                 Err(e) => Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
             },
-            Handle::TarGz(archive) => {
-                if let Some(compression) = &self.compression {
-                    println!("call");
-                    match compression {
-                        Compression::TarGz(wanted_path_str) => {
-                            let path_wanted = Path::new(wanted_path_str);
-                            let entry = archive.entries()?.find(|entry| {
-                                if let Ok(entry) = entry
-                                    && let Ok(path) = entry.path()
-                                    && path == path_wanted
-                                {
-                                    return true;
-                                }
-                                false
-                            });
-
-                            if entry.is_none() {
-                                return Err(anyhow::anyhow!(
-                                    "specified list file not found in archive"
-                                ));
-                            }
-
-                            match entry.unwrap().unwrap().read(&mut buf) {
-                                Ok(n) if n > 0 => return Ok(Some(Vec::from(buf))),
-                                Ok(n) if n == 0 => return Ok(None),
-                                Ok(_) => return Ok(None),
-                                Err(e) => {
-                                    return Err(anyhow::anyhow!(
-                                        "Error reading chunk from file: {}",
-                                        e
-                                    ))
-                                }
-                            }
-                        }
-                        _ => return Err(anyhow::anyhow!("compression must be TarGz")),
+            Handle::TarGz(archive_entry) => {
+                // println!("entry {:?}", archive_entry);
+                match archive_entry.read(&mut buf[..]).await {
+                    Ok(n) if n > 0 => {
+                        println!("reading {}, {:?}", n, buf);
+                        Ok(Some(Vec::from(&buf[..])))
                     }
+                    Ok(n) if n == 0 => Ok(None),
+                    Ok(_) => Ok(None),
+                    Err(e) => Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
                 }
-                Err(anyhow::anyhow!("compression must be TarGz"))
             }
         }
     }
@@ -144,7 +135,7 @@ impl Input for FileInput {
         if self.handle.is_some() {
             self.handle.take();
         }
-        self.init_handle()?;
+        self.init_handle().await?;
         Ok(())
     }
 }
