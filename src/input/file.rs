@@ -25,16 +25,6 @@ pub enum Handle {
     TarGz(Entry<Archive<GzipDecoder<BufReader<File>>>>),
 }
 
-// impl Read for Handle {
-//     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-//         match self {
-//             Self::File(f) => f.read(buf),
-//             Self::Gz(f) => f.read(buf),
-//             Self::TarGz(f) => f.read(buf),
-//         }
-//     }
-// }
-
 /// FileInput reads data from a File
 pub struct FileInput {
     compression: Option<Compression>,
@@ -78,8 +68,8 @@ impl FileInput {
                         && let Ok(path) = entry.path()
                         && path == path_wanted
                     {
-                        println!("found path: {:?}", path);
                         self.handle = Some(Handle::TarGz(entry));
+                        break;
                     }
                 }
                 if self.handle.is_none() {
@@ -95,11 +85,14 @@ impl FileInput {
 #[async_trait]
 impl Input for FileInput {
     async fn chunk(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
+        const BUF_SIZE: usize = 1024;
         if self.handle.is_none() {
             self.init_handle().await?;
         }
-        let mut buf = [0; 1024];
+        let mut buf = [0; BUF_SIZE];
         let mut str_buf = String::new();
+        let mut vec_buf = Vec::with_capacity(BUF_SIZE);
+        // handle can be safely unwrapped here since it's initialized at the beginning of the function
         match self.handle.as_mut().unwrap() {
             Handle::File(file) => match file.read_line(&mut str_buf).await {
                 Ok(n) if n > 0 => Ok(Some(str_buf.as_bytes().to_vec())),
@@ -108,21 +101,18 @@ impl Input for FileInput {
                 Err(e) => Err(anyhow::anyhow!("Error reading line from file: {}", e)),
             },
             Handle::Gz(archive) => match archive.read(&mut buf[..]).await {
-                Ok(n) if n > 0 => {
-                    println!("reading {:?}", buf);
-                    Ok(Some(Vec::from(&buf[..n])))
-                }
+                Ok(n) if n > 0 => Ok(Some(Vec::from(&buf[..n]))),
                 Ok(n) if n == 0 => Ok(None),
                 Ok(_) => Ok(None),
                 Err(e) => Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
             },
             Handle::TarGz(archive_entry) => {
-                // println!("entry {:?}", archive_entry);
-                match archive_entry.read(&mut buf[..]).await {
-                    Ok(n) if n > 0 => {
-                        println!("reading {}, {:?}", n, buf);
-                        Ok(Some(Vec::from(&buf[..])))
-                    }
+                match archive_entry
+                    .take(BUF_SIZE as u64)
+                    .read_to_end(&mut vec_buf)
+                    .await
+                {
+                    Ok(n) if n > 0 => Ok(Some(Vec::from(&vec_buf[..n]))),
                     Ok(n) if n == 0 => Ok(None),
                     Ok(_) => Ok(None),
                     Err(e) => Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
