@@ -8,7 +8,7 @@ use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::{
     fs::File,
-    io::{AsyncBufReadExt, AsyncReadExt, BufReader},
+    io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader},
 };
 use tokio_tar::{Archive, Entry};
 
@@ -85,13 +85,32 @@ impl FileInput {
 #[async_trait]
 impl Input for FileInput {
     async fn chunk(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
+        async fn read_bytes_to_newline(
+            archive: &mut (impl AsyncRead + Unpin),
+            mut vec_buf: Vec<u8>,
+        ) -> anyhow::Result<Option<Vec<u8>>> {
+            loop {
+                let mut byte_buf = Vec::with_capacity(1);
+                let n = archive.take(1).read_to_end(&mut byte_buf).await;
+                match n {
+                    Ok(n) if n > 0 => {
+                        if let Some(b) = byte_buf.last() && b == &10 {
+                                return Ok(Some(vec_buf));
+                            }
+                        vec_buf.extend(byte_buf);
+                    }
+                    Err(e) => return Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
+                    _ => return Ok(None),
+                }
+            }
+        }
+
         const BUF_SIZE: usize = 1024;
         if self.handle.is_none() {
             self.init_handle().await?;
         }
-        let mut buf = [0; BUF_SIZE];
         let mut str_buf = String::new();
-        let mut vec_buf = Vec::with_capacity(BUF_SIZE);
+        let vec_buf = Vec::with_capacity(BUF_SIZE);
         // handle can be safely unwrapped here since it's initialized at the beginning of the function
         match self.handle.as_mut().unwrap() {
             Handle::File(file) => match file.read_line(&mut str_buf).await {
@@ -100,24 +119,8 @@ impl Input for FileInput {
                 Ok(_) => Ok(None),
                 Err(e) => Err(anyhow::anyhow!("Error reading line from file: {}", e)),
             },
-            Handle::Gz(archive) => match archive.read(&mut buf[..]).await {
-                Ok(n) if n > 0 => Ok(Some(Vec::from(&buf[..n]))),
-                Ok(n) if n == 0 => Ok(None),
-                Ok(_) => Ok(None),
-                Err(e) => Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
-            },
-            Handle::TarGz(archive_entry) => {
-                match archive_entry
-                    .take(BUF_SIZE as u64)
-                    .read_to_end(&mut vec_buf)
-                    .await
-                {
-                    Ok(n) if n > 0 => Ok(Some(Vec::from(&vec_buf[..n]))),
-                    Ok(n) if n == 0 => Ok(None),
-                    Ok(_) => Ok(None),
-                    Err(e) => Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
-                }
-            }
+            Handle::Gz(archive) => read_bytes_to_newline(archive, vec_buf).await,
+            Handle::TarGz(archive) => read_bytes_to_newline(archive, vec_buf).await,
         }
     }
 
