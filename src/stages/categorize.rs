@@ -93,6 +93,10 @@ impl FilterController<StageCategorize, FileInput, File> {
             let cmd_rx = self.command_rx.clone();
             let msg_tx = self.message_tx.clone();
 
+            msg_tx
+                .send(ChannelMessage::Info(format!("{}", tag)))
+                .unwrap();
+
             let include_lists = self
                 .filter_lists
                 .iter_mut()
@@ -108,7 +112,7 @@ impl FilterController<StageCategorize, FileInput, File> {
             }
 
             let handle = tokio::spawn(async move {
-                for line in tree_set.iter() {
+                for line in tree_set {
                     // stop task on quit message
                     if let Ok(cmd) = cmd_rx.try_recv() {
                         match cmd {

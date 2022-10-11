@@ -139,6 +139,12 @@ where
         let list = Arc::clone(&filter_list);
         let cmd_rx = command_rx.clone();
         let msg_tx = message_tx.clone();
+        msg_tx
+            .send(ChannelMessage::Info(format!(
+                "{}: {}",
+                filter_list.id, filter_list.source
+            )))
+            .unwrap();
         let handle = tokio::spawn(async move {
             loop {
                 // stop task on quit message

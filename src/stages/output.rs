@@ -10,7 +10,7 @@ use futures::{future::join_all, lock::Mutex};
 use tokio::task::JoinHandle;
 
 use crate::{
-    filter_controller::{FilterController, StageOutput, CATEGORIZE_PATH},
+    filter_controller::{ChannelMessage, FilterController, StageOutput, CATEGORIZE_PATH},
     input::file::FileInput,
     io::category_list_io::CategoryListIO,
 };
@@ -87,6 +87,9 @@ impl FilterController<StageOutput, FileInput, File> {
     async fn output(&mut self) -> anyhow::Result<()> {
         let mut handles: Vec<JoinHandle<()>> = vec![];
         for list in self.category_lists.iter_mut() {
+            self.message_tx
+                .send(ChannelMessage::Info(format!("{}", list.name)))
+                .unwrap();
             let reader = Arc::clone(&list.reader.take().unwrap());
             let writer = Arc::clone(&list.writer.take().unwrap());
             let output_adapter = self.config.out_format.get_adapter(
