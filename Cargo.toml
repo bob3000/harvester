@@ -16,5 +16,13 @@ serde = { version = "1.0.128", features = ["derive"] }
 async-trait = "0.1.51"
 flume = "0.10.8"
 regex = "1.5.4"
+flate2 = "1.0.24"
+tokio-tar = { path = "../../rust/tokio-tar" }
+async-compression = { version = "0.3.14", features = [
+  "gzip",
+  "bzip2",
+  "tokio",
+] }
+bytes = "1.2.1"
 log = "0.4.17"
 env_logger = "0.9.1"

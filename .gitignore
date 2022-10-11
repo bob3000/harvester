@@ -1,5 +1,6 @@
 /target
 *.txt
 *.json
+*.gz
 /out
 /tmp

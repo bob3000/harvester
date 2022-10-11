@@ -15,7 +15,11 @@ use tokio::task::JoinHandle;
 use crate::{
     config::Config,
     filter_list::FilterList,
-    input::{file::FileInput, url::UrlInput, Input},
+    input::{
+        file::{Compression, FileInput},
+        url::UrlInput,
+        Input,
+    },
     io::category_list_io::CategoryListIO,
     io::filter_list_io::FilterListIO,
 };
@@ -45,7 +49,7 @@ pub struct StageOutput;
 
 /// The FilterController stores the in formation needed to run the data processing
 #[derive(Debug)]
-pub struct FilterController<Stage, R: Input + Send + Sync, W: Write + Send + Sync> {
+pub struct FilterController<Stage, R: Input + Send, W: Write + Send> {
     pub stage: PhantomData<Stage>,
     pub config: Config,
     pub message_tx: Sender<ChannelMessage>,
@@ -60,9 +64,10 @@ pub struct FilterController<Stage, R: Input + Send + Sync, W: Write + Send + Syn
 ///
 /// * `list`: the FilterListIO where the reader
 /// * `base_dir`: the file system path to be searched
-pub fn get_input_file<W: Write + Send + Sync>(
+pub fn get_input_file<W: Write + Send>(
     list: &mut FilterListIO<FileInput, W>,
     base_dir: PathBuf,
+    compression: Option<Compression>,
 ) -> anyhow::Result<()> {
     let mut contents =
         fs::read_dir(base_dir).with_context(|| "input file directory does not exist")?;
@@ -74,7 +79,10 @@ pub fn get_input_file<W: Write + Send + Sync>(
             false
         })
         .ok_or_else(|| anyhow::anyhow!("file not found: {}", list.filter_list.id))??;
-    list.reader = Some(Arc::new(Mutex::new(FileInput::new(entry.path()))));
+    list.reader = Some(Arc::new(Mutex::new(FileInput::new(
+        entry.path(),
+        compression,
+    ))));
     Ok(())
 }
 
@@ -94,7 +102,7 @@ pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Res
 ///
 /// * `list`: the FilterListIO object to receive the writer
 /// * `base_dir`: the base directory where the output directory is being created
-pub fn create_out_file<R: Input + Send + Sync>(
+pub fn create_out_file<R: Input + Send>(
     list: &mut FilterListIO<R, File>,
     base_dir: PathBuf,
 ) -> anyhow::Result<()> {
@@ -120,10 +128,10 @@ pub async fn process<SRC, DST, FN, RES>(
     message_tx: Sender<ChannelMessage>,
 ) -> Vec<JoinHandle<()>>
 where
-    SRC: Input + Send + Sync + 'static,
-    FN: Fn(Arc<FilterList>, Option<String>) -> RES + Send + Sync + 'static,
-    DST: Write + Send + Sync + 'static,
-    RES: Future<Output = anyhow::Result<Option<String>>> + Send + Sync + 'static,
+    SRC: Input + Send + 'static,
+    FN: Fn(Arc<FilterList>, Option<Vec<u8>>) -> RES + Send + Sync + 'static,
+    DST: Write + Send + 'static,
+    RES: Future<Output = anyhow::Result<Option<Vec<u8>>>> + Send + Sync + 'static,
 {
     let mut handles: Vec<JoinHandle<()>> = Vec::new();
     for FilterListIO {
@@ -164,7 +172,7 @@ where
                     Ok(Some(chunk)) => {
                         let chunk = fn_transform(list.clone(), Some(chunk)).await.unwrap();
                         if let Some(chunk) = chunk {
-                            if let Err(e) = writer.lock().await.write_all(chunk.as_bytes()) {
+                            if let Err(e) = writer.lock().await.write_all(&chunk) {
                                 msg_tx
                                     .send(ChannelMessage::Error(format!("{}", e)))
                                     .with_context(|| "error sending ChannelMessage")
@@ -177,7 +185,7 @@ where
                     }
                     Err(e) => {
                         msg_tx
-                            .send(ChannelMessage::Error(format!("{}", e)))
+                            .send(ChannelMessage::Error(format!("Error: {}", e)))
                             .with_context(|| "error sending ChannelMessage")
                             .unwrap();
                         break;
@@ -207,13 +215,13 @@ mod tests {
 
     #[async_trait]
     impl Input for TestInput {
-        async fn chunk(&mut self) -> anyhow::Result<Option<String>> {
+        async fn chunk(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
             let mut buf = vec![0; 32];
             let n = self.cursor.read(&mut buf)?;
             if n == 0 {
                 Ok(None)
             } else {
-                Ok(Some(String::from_utf8(buf.to_vec()).unwrap()))
+                Ok(Some(buf.to_vec()))
             }
         }
 
@@ -238,6 +246,7 @@ mod tests {
         // apply the data to the FilterList object
         let filter_list = FilterList {
             id: "".to_string(),
+            compression: None,
             source: "".to_string(),
             tags: vec![],
             regex: "".to_string(),

@@ -70,7 +70,7 @@ impl FilterController<StageCategorize, FileInput, File> {
         self.filter_lists
             .iter_mut()
             .try_for_each(|l| -> anyhow::Result<()> {
-                get_input_file::<File>(l, extract_path.clone())?;
+                get_input_file::<File>(l, extract_path.clone(), None)?;
                 l.writer = None;
                 Ok(())
             })?;
@@ -107,7 +107,14 @@ impl FilterController<StageCategorize, FileInput, File> {
                 while let Ok(Some(chunk)) = incl.reader.as_mut().unwrap().lock().await.chunk().await
                 {
                     // insert the URLs into a BTreeSet to deduplicate and sort the data
-                    tree_set.insert(chunk);
+                    let str_chunk = match String::from_utf8(chunk) {
+                        Ok(s) => s,
+                        Err(e) => {
+                            anyhow::anyhow!("{}", e);
+                            continue;
+                        }
+                    };
+                    tree_set.insert(str_chunk);
                 }
             }
 
