@@ -16,3 +16,5 @@ serde = { version = "1.0.128", features = ["derive"] }
 async-trait = "0.1.51"
 flume = "0.10.8"
 regex = "1.5.4"
+log = "0.4.17"
+env_logger = "0.9.1"
