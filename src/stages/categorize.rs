@@ -103,8 +103,15 @@ impl FilterController<StageCategorize, FileInput, File> {
                 .filter(|l| l.filter_list.tags.contains(&tag));
 
             for incl in include_lists {
-                incl.reader.as_mut().unwrap().lock().await.reset().await?;
-                while let Ok(Some(chunk)) = incl.reader.as_mut().unwrap().lock().await.chunk().await
+                let reader = match incl.reader.as_mut() {
+                    Some(r) => r,
+                    None => {
+                        debug!("reader is None: {}", incl.filter_list.id);
+                        continue
+                    },
+                };
+                reader.lock().await.reset().await?;
+                while let Ok(Some(chunk)) = reader.lock().await.chunk().await
                 {
                     // insert the URLs into a BTreeSet to deduplicate and sort the data
                     let str_chunk = match String::from_utf8(chunk) {

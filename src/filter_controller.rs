@@ -79,6 +79,20 @@ pub fn get_input_file<W: Write + Send>(
             false
         })
         .ok_or_else(|| anyhow::anyhow!("file not found: {}", list.filter_list.id))??;
+    let path = entry.path();
+    let file_name = path.as_os_str().to_str().unwrap();
+    match entry.metadata() {
+        Ok(meta) => {
+            if meta.len() == 0 {
+                debug!("File {} has zero length", file_name);
+                return Ok(());
+            };
+        },
+        Err(_) => {
+            debug!("File {} has no length", file_name);
+            return Ok(());
+        }
+    };
     list.reader = Some(Arc::new(Mutex::new(FileInput::new(
         entry.path(),
         compression,
@@ -141,8 +155,20 @@ where
         ..
     } in filter_lists
     {
-        let reader = Arc::clone(&reader.take().unwrap());
-        let writer = Arc::clone(&writer.take().unwrap());
+        let reader = match &reader.take() {
+            Some(r) => Arc::clone(r),
+            None => {
+                    debug!("reader is None: {}", filter_list.id);
+                    continue
+                },
+        };
+        let writer = match &writer.take() {
+            Some(w) => Arc::clone(w),
+            None => {
+                    debug!("writer is None: {}", filter_list.id);
+                    continue
+                },
+        };
         let filter_list = Arc::new(filter_list.clone());
         let list = Arc::clone(&filter_list);
         let cmd_rx = command_rx.clone();
