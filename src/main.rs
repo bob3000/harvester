@@ -9,15 +9,23 @@ mod stages;
 
 use std::{path::Path, process::exit};
 
+use env_logger::Env;
 use filter_controller::{ChannelCommand, ChannelMessage, FilterController};
 use flume::{Receiver, Sender};
 
 use crate::config::Config;
 
+#[macro_use]
+extern crate log;
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let verbose = true;
-    let debug = true;
+    let env = Env::default()
+        .filter_or("HV_LOG_LEVEL", "info")
+        .write_style_or("HV_LOG_STYLE", "always");
+
+    env_logger::init_from_env(env);
+
     let (cmd_tx, cmd_rx): (Sender<ChannelCommand>, Receiver<ChannelCommand>) = flume::unbounded();
     let (msg_tx, msg_rx): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
 
@@ -32,17 +40,13 @@ async fn main() -> anyhow::Result<()> {
         while let Ok(msg) = msg_rx.recv() {
             match msg {
                 ChannelMessage::Error(e) => {
-                    eprintln!("{:?}", e);
+                    error!("{}", e);
                 }
                 ChannelMessage::Info(i) => {
-                    if verbose {
-                        println!("{}", i);
-                    }
+                    info!("{}", i);
                 }
                 ChannelMessage::Debug(i) => {
-                    if debug {
-                        println!("{}", i);
-                    }
+                    debug!("{}", i);
                 }
             }
         }
@@ -51,7 +55,7 @@ async fn main() -> anyhow::Result<()> {
     // crate configuration
     let config = match Config::load(Path::new("./config.json")) {
         Err(e) => {
-            println!("{:?}", e);
+            error!("{:?}", e);
             exit(1);
         }
         Ok(c) => c,
@@ -61,37 +65,41 @@ async fn main() -> anyhow::Result<()> {
     let mut download_controller = FilterController::new(config, cmd_rx, msg_tx);
 
     // start the processing chain by downloading the filter lists
+    info!("Downalading lists ...");
     let mut extract_controller = match download_controller.run().await {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("{:?}", e);
+            error!("{:?}", e);
             exit(1);
         }
     };
 
     // the second stage extracts the URLs from the downloaded lists which come in heterogeneous formats
+    info!("Extracting domains ...");
     let mut categorize_controller = match extract_controller.run().await {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("{:?}", e);
+            error!("{:?}", e);
             exit(1);
         }
     };
 
     // the third stage assembles the URLs into lists corresponding to the tags set in the configuration file
+    info!("Categorizing domains ...");
     let mut output_controller = match categorize_controller.run().await {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("{:?}", e);
+            error!("{:?}", e);
             exit(1);
         }
     };
 
     // the fourth stage finally transforms the category lists into the desired output format
+    info!("Creating output files ...");
     match output_controller.run().await {
         Ok(c) => c,
         Err(e) => {
-            eprintln!("{:?}", e);
+            error!("{:?}", e);
             exit(1);
         }
     };

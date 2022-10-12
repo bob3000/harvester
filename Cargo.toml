@@ -24,3 +24,5 @@ async-compression = { version = "0.3.14", features = [
   "tokio",
 ] }
 bytes = "1.2.1"
+log = "0.4.17"
+env_logger = "0.9.1"

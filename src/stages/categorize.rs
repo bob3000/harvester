@@ -93,14 +93,25 @@ impl FilterController<StageCategorize, FileInput, File> {
             let cmd_rx = self.command_rx.clone();
             let msg_tx = self.message_tx.clone();
 
+            msg_tx
+                .send(ChannelMessage::Info(format!("{}", tag)))
+                .unwrap();
+
             let include_lists = self
                 .filter_lists
                 .iter_mut()
                 .filter(|l| l.filter_list.tags.contains(&tag));
 
             for incl in include_lists {
-                incl.reader.as_mut().unwrap().lock().await.reset().await?;
-                while let Ok(Some(chunk)) = incl.reader.as_mut().unwrap().lock().await.chunk().await
+                let reader = match incl.reader.as_mut() {
+                    Some(r) => r,
+                    None => {
+                        debug!("reader is None: {}", incl.filter_list.id);
+                        continue
+                    },
+                };
+                reader.lock().await.reset().await?;
+                while let Ok(Some(chunk)) = reader.lock().await.chunk().await
                 {
                     // insert the URLs into a BTreeSet to deduplicate and sort the data
                     let str_chunk = match String::from_utf8(chunk) {
@@ -115,7 +126,7 @@ impl FilterController<StageCategorize, FileInput, File> {
             }
 
             let handle = tokio::spawn(async move {
-                for line in tree_set.iter() {
+                for line in tree_set {
                     // stop task on quit message
                     if let Ok(cmd) = cmd_rx.try_recv() {
                         match cmd {
