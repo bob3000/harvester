@@ -5,6 +5,7 @@ use std::{
     marker::PhantomData,
     path::PathBuf,
     str::FromStr,
+    sync::atomic::Ordering,
 };
 
 use anyhow::Context;
@@ -13,8 +14,8 @@ use tokio::task::JoinHandle;
 
 use crate::{
     filter_controller::{
-        get_input_file, ChannelCommand, ChannelMessage, FilterController, StageCategorize,
-        StageOutput, CATEGORIZE_PATH, TRANSFORM_PATH,
+        get_input_file, ChannelMessage, FilterController, StageCategorize, StageOutput,
+        CATEGORIZE_PATH, TRANSFORM_PATH,
     },
     input::{file::FileInput, Input},
     io::filter_list_io::FilterListIO,
@@ -35,10 +36,10 @@ impl FilterController<StageCategorize, FileInput, File> {
         let categorize_controller = FilterController::<StageOutput, FileInput, File> {
             stage: PhantomData,
             config: self.config.clone(),
-            command_rx: self.command_rx.clone(),
             message_tx: self.message_tx.clone(),
             filter_lists: vec![],
             category_lists: vec![],
+            is_processing: self.is_processing.clone(),
         };
         Ok(categorize_controller)
     }
@@ -85,17 +86,21 @@ impl FilterController<StageCategorize, FileInput, File> {
         fs::create_dir_all(&categorize_path).with_context(|| "could not create out directory")?;
         let mut handles: Vec<JoinHandle<()>> = vec![];
         for tag in self.get_tags() {
+            if !self.is_processing.load(Ordering::SeqCst) {
+                return Ok(());
+            }
             let mut tree_set: BTreeSet<String> = BTreeSet::new();
             let mut out_path = categorize_path.clone();
             out_path.push(&tag);
             let f = File::create(out_path).with_context(|| "could not create out file")?;
             let mut buf_writer = BufWriter::new(f);
-            let cmd_rx = self.command_rx.clone();
             let msg_tx = self.message_tx.clone();
 
             msg_tx
                 .send(ChannelMessage::Info(format!("{}", tag)))
-                .unwrap();
+                .unwrap_or_else(|m| {
+                    debug!("filter_controller: {}", m);
+                });
 
             let include_lists = self
                 .filter_lists
@@ -107,12 +112,11 @@ impl FilterController<StageCategorize, FileInput, File> {
                     Some(r) => r,
                     None => {
                         debug!("reader is None: {}", incl.filter_list.id);
-                        continue
-                    },
+                        continue;
+                    }
                 };
                 reader.lock().await.reset().await?;
-                while let Ok(Some(chunk)) = reader.lock().await.chunk().await
-                {
+                while let Ok(Some(chunk)) = reader.lock().await.chunk().await {
                     // insert the URLs into a BTreeSet to deduplicate and sort the data
                     let str_chunk = match String::from_utf8(chunk) {
                         Ok(s) => s,
@@ -127,22 +131,13 @@ impl FilterController<StageCategorize, FileInput, File> {
 
             let handle = tokio::spawn(async move {
                 for line in tree_set {
-                    // stop task on quit message
-                    if let Ok(cmd) = cmd_rx.try_recv() {
-                        match cmd {
-                            ChannelCommand::Quit => {
-                                msg_tx
-                                    .send(ChannelMessage::Debug("quitting task".to_string()))
-                                    .unwrap();
-                                break;
-                            }
-                        }
-                    }
                     if let Err(e) = buf_writer.write_all(line.as_bytes()) {
                         msg_tx
                             .send(ChannelMessage::Error(format!("{:?}", e)))
                             .with_context(|| "error sending ChannelMessage")
-                            .unwrap();
+                            .unwrap_or_else(|m| {
+                                debug!("categorize: {}", m);
+                            });
                         break;
                     }
                 }

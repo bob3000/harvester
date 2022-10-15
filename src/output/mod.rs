@@ -1,13 +1,14 @@
-use std::{fs::File, pin::Pin, sync::Arc};
+use std::{
+    fs::File,
+    pin::Pin,
+    sync::{atomic::AtomicBool, Arc},
+};
 
-use flume::{Receiver, Sender};
+use flume::Sender;
 use futures::{lock::Mutex, Future};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    filter_controller::{ChannelCommand, ChannelMessage},
-    input::file::FileInput,
-};
+use crate::{filter_controller::ChannelMessage, input::file::FileInput};
 
 use self::{hostsfile::hostsfile_adapter, lua::lua_adapter};
 
@@ -28,13 +29,13 @@ impl OutputType {
         &self,
         reader: Arc<Mutex<FileInput>>,
         writer: Arc<Mutex<File>>,
-        command_rx: Receiver<ChannelCommand>,
         message_tx: Sender<ChannelMessage>,
+        is_processing: Arc<AtomicBool>,
     ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
         match self {
-            OutputType::Lua => Box::pin(lua_adapter(reader, writer, command_rx, message_tx)),
+            OutputType::Lua => Box::pin(lua_adapter(reader, writer, message_tx, is_processing)),
             OutputType::Hostsfile => {
-                Box::pin(hostsfile_adapter(reader, writer, command_rx, message_tx))
+                Box::pin(hostsfile_adapter(reader, writer, message_tx, is_processing))
             }
         }
     }

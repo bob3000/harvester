@@ -1,11 +1,18 @@
-use std::{fs::File, io::Write, sync::Arc};
+use std::{
+    fs::File,
+    io::Write,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use anyhow::Context;
-use flume::{Receiver, Sender};
+use flume::Sender;
 use futures::lock::Mutex;
 
 use crate::{
-    filter_controller::{ChannelCommand, ChannelMessage},
+    filter_controller::ChannelMessage,
     input::{file::FileInput, Input},
 };
 
@@ -18,23 +25,14 @@ use crate::{
 pub async fn lua_adapter(
     reader: Arc<Mutex<FileInput>>,
     writer: Arc<Mutex<File>>,
-    cmd_rx: Receiver<ChannelCommand>,
     msg_tx: Sender<ChannelMessage>,
+    is_processing: Arc<AtomicBool>,
 ) {
     let mut worte_header = false;
     loop {
-        // stop task on quit message
-        if let Ok(cmd) = cmd_rx.try_recv() {
-            match cmd {
-                ChannelCommand::Quit => {
-                    msg_tx
-                        .send(ChannelMessage::Debug("quitting task".to_string()))
-                        .unwrap();
-                    break;
-                }
-            }
+        if !is_processing.load(Ordering::SeqCst) {
+            return;
         }
-
         // write header line
         if !worte_header {
             if let Err(e) = writer.lock().await.write_all("return {\n".as_bytes()) {

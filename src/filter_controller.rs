@@ -3,11 +3,14 @@ use std::{
     io::Write,
     marker::PhantomData,
     path::PathBuf,
-    sync::Arc,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 use anyhow::Context;
-use flume::{Receiver, Sender};
+use flume::Sender;
 use futures::{lock::Mutex, Future};
 use reqwest::Url;
 use tokio::task::JoinHandle;
@@ -35,6 +38,7 @@ pub enum ChannelMessage {
     Error(String),
     Info(String),
     Debug(String),
+    Shutdown,
 }
 
 pub enum ChannelCommand {
@@ -53,9 +57,9 @@ pub struct FilterController<Stage, R: Input + Send, W: Write + Send> {
     pub stage: PhantomData<Stage>,
     pub config: Config,
     pub message_tx: Sender<ChannelMessage>,
-    pub command_rx: Receiver<ChannelCommand>,
     pub filter_lists: Vec<FilterListIO<R, W>>,
     pub category_lists: Vec<CategoryListIO<R, W>>,
+    pub is_processing: Arc<AtomicBool>,
 }
 
 /// Searches the file system in the given base directory for a file named after the list id. If the
@@ -87,7 +91,7 @@ pub fn get_input_file<W: Write + Send>(
                 debug!("File {} has zero length", file_name);
                 return Ok(());
             };
-        },
+        }
         Err(_) => {
             debug!("File {} has no length", file_name);
             return Ok(());
@@ -138,8 +142,8 @@ pub fn create_out_file<R: Input + Send>(
 pub async fn process<SRC, DST, FN, RES>(
     filter_lists: &mut Vec<FilterListIO<SRC, DST>>,
     fn_transform: &'static FN,
-    command_rx: Receiver<ChannelCommand>,
     message_tx: Sender<ChannelMessage>,
+    is_processing: Arc<AtomicBool>,
 ) -> Vec<JoinHandle<()>>
 where
     SRC: Input + Send + 'static,
@@ -155,44 +159,47 @@ where
         ..
     } in filter_lists
     {
+        if !is_processing.load(Ordering::SeqCst) {
+            return handles;
+        }
         let reader = match &reader.take() {
             Some(r) => Arc::clone(r),
             None => {
-                    debug!("reader is None: {}", filter_list.id);
-                    continue
-                },
+                debug!("reader is None: {}", filter_list.id);
+                continue;
+            }
         };
         let writer = match &writer.take() {
             Some(w) => Arc::clone(w),
             None => {
-                    debug!("writer is None: {}", filter_list.id);
-                    continue
-                },
+                debug!("writer is None: {}", filter_list.id);
+                continue;
+            }
         };
         let filter_list = Arc::new(filter_list.clone());
         let list = Arc::clone(&filter_list);
-        let cmd_rx = command_rx.clone();
         let msg_tx = message_tx.clone();
+
         msg_tx
             .send(ChannelMessage::Info(format!(
                 "{}: {}",
                 filter_list.id, filter_list.source
             )))
-            .unwrap();
+            .unwrap_or_else(|m| {
+                debug!("filter_controller: {}", m);
+            });
+        let is_proc = Arc::clone(&is_processing);
         let handle = tokio::spawn(async move {
             loop {
-                // stop task on quit message
-                if let Ok(cmd) = cmd_rx.try_recv() {
-                    match cmd {
-                        ChannelCommand::Quit => {
-                            msg_tx
-                                .send(ChannelMessage::Debug("quitting task".to_string()))
-                                .unwrap();
-                            break;
-                        }
-                    }
+                if !is_proc.load(Ordering::SeqCst) {
+                    msg_tx
+                        .send(ChannelMessage::Debug("quitting task".to_string()))
+                        .unwrap_or_else(|m| {
+                            debug!("filter_controller: {}", m);
+                        });
+                    return;
                 }
-
+                // stop task on quit message
                 let result = reader.lock().await.chunk().await;
                 match result {
                     Ok(Some(chunk)) => {
@@ -202,7 +209,9 @@ where
                                 msg_tx
                                     .send(ChannelMessage::Error(format!("{}", e)))
                                     .with_context(|| "error sending ChannelMessage")
-                                    .unwrap();
+                                    .unwrap_or_else(|m| {
+                                        debug!("filter_controller: {}", m);
+                                    });
                             }
                         }
                     }
@@ -213,7 +222,9 @@ where
                         msg_tx
                             .send(ChannelMessage::Error(format!("Error: {}", e)))
                             .with_context(|| "error sending ChannelMessage")
-                            .unwrap();
+                            .unwrap_or_else(|m| {
+                                debug!("filter_controller: {}", m);
+                            });
                         break;
                     }
                 }
@@ -228,6 +239,7 @@ where
 mod tests {
     use crate::filter_list::FilterList;
     use async_trait::async_trait;
+    use flume::Receiver;
     use futures::future::join_all;
     use std::io::{Cursor, Read};
 
@@ -266,8 +278,9 @@ mod tests {
         let input = Arc::new(Mutex::new(TestInput { cursor }));
         // set up output sink
         let output = Arc::new(Mutex::new(Cursor::new(vec![0, 32])));
-        let (_, cmd_rx): (Sender<ChannelCommand>, Receiver<ChannelCommand>) = flume::unbounded();
         let (msg_tx, _): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
+
+        let is_processing = Arc::new(AtomicBool::new(true));
 
         // apply the data to the FilterList object
         let filter_list = FilterList {
@@ -288,8 +301,8 @@ mod tests {
         let handles = process(
             &mut vec![filter_list_io],
             &|_, c| async { Ok(c) },
-            cmd_rx,
             msg_tx,
+            is_processing.clone(),
         )
         .await;
         join_all(handles).await;

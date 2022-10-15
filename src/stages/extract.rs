@@ -30,10 +30,10 @@ impl FilterController<StageExtract, FileInput, File> {
         let categorize_controller = FilterController::<StageCategorize, FileInput, File> {
             stage: PhantomData,
             config: self.config.clone(),
-            command_rx: self.command_rx.clone(),
             message_tx: self.message_tx.clone(),
             filter_lists: vec![],
             category_lists: vec![],
+            is_processing: self.is_processing.clone(),
         };
         Ok(categorize_controller)
     }
@@ -80,8 +80,8 @@ impl FilterController<StageExtract, FileInput, File> {
                 }
                 Ok(None)
             },
-            self.command_rx.clone(),
             self.message_tx.clone(),
+            self.is_processing.clone(),
         )
         .await;
         join_all(handles).await;

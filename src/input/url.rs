@@ -1,6 +1,6 @@
 use crate::input::Input;
 use async_trait::async_trait;
-use reqwest::{Url, StatusCode};
+use reqwest::{StatusCode, Url};
 
 /// UrlInput downloads data from an Url
 #[derive(Debug)]
@@ -28,10 +28,6 @@ impl Input for UrlInput {
         let status_code = self.response.as_ref().unwrap().status();
         if status_code != StatusCode::OK {
             return Err(anyhow::anyhow!("status code {}: {}", status_code, self.url,));
-        }
-
-        if let Some(len) = self.response.as_ref().unwrap().content_length() && len == 0 {
-            return Err(anyhow::anyhow!("empty response body: {}", self.url,));
         }
 
         match self.response.as_mut().unwrap().chunk().await {

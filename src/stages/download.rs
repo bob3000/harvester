@@ -1,13 +1,19 @@
-use std::{fs::File, marker::PhantomData, path::PathBuf, str::FromStr};
+use std::{
+    fs::File,
+    marker::PhantomData,
+    path::PathBuf,
+    str::FromStr,
+    sync::{atomic::AtomicBool, Arc},
+};
 
-use flume::{Receiver, Sender};
+use flume::Sender;
 use futures::future::join_all;
 
 use crate::{
     config::Config,
     filter_controller::{
-        create_input_urls, create_out_file, process, ChannelCommand, ChannelMessage,
-        FilterController, StageDownload, StageExtract, RAW_PATH,
+        create_input_urls, create_out_file, process, ChannelMessage, FilterController,
+        StageDownload, StageExtract, RAW_PATH,
     },
     input::{file::FileInput, url::UrlInput},
     io::filter_list_io::FilterListIO,
@@ -18,16 +24,16 @@ use crate::{
 impl FilterController<StageDownload, UrlInput, File> {
     pub fn new(
         config: Config,
-        command_rx: Receiver<ChannelCommand>,
         message_tx: Sender<ChannelMessage>,
+        is_processing: Arc<AtomicBool>,
     ) -> Self {
         Self {
             stage: PhantomData,
             config,
-            command_rx,
             message_tx,
             filter_lists: vec![],
             category_lists: vec![],
+            is_processing,
         }
     }
 
@@ -42,10 +48,10 @@ impl FilterController<StageDownload, UrlInput, File> {
         let extract_controller = FilterController::<StageExtract, FileInput, File> {
             stage: PhantomData,
             config: self.config.clone(),
-            command_rx: self.command_rx.clone(),
             message_tx: self.message_tx.clone(),
             filter_lists: vec![],
             category_lists: vec![],
+            is_processing: self.is_processing.clone(),
         };
         Ok(extract_controller)
     }
@@ -76,8 +82,8 @@ impl FilterController<StageDownload, UrlInput, File> {
         let handles = process(
             &mut self.filter_lists,
             &|_, chunk| async { Ok(chunk) },
-            self.command_rx.clone(),
             self.message_tx.clone(),
+            self.is_processing.clone(),
         )
         .await;
         join_all(handles).await;

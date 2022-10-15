@@ -2,7 +2,7 @@ use std::{
     fs::{self, File},
     path::PathBuf,
     str::FromStr,
-    sync::Arc,
+    sync::{atomic::Ordering, Arc},
 };
 
 use anyhow::Context;
@@ -87,16 +87,21 @@ impl FilterController<StageOutput, FileInput, File> {
     async fn output(&mut self) -> anyhow::Result<()> {
         let mut handles: Vec<JoinHandle<()>> = vec![];
         for list in self.category_lists.iter_mut() {
+            if !self.is_processing.load(Ordering::SeqCst) {
+                return Ok(());
+            }
             self.message_tx
                 .send(ChannelMessage::Info(format!("{}", list.name)))
-                .unwrap();
+                .unwrap_or_else(|m| {
+                    debug!("filter_controller: {}", m);
+                });
             let reader = Arc::clone(&list.reader.take().unwrap());
             let writer = Arc::clone(&list.writer.take().unwrap());
             let output_adapter = self.config.out_format.get_adapter(
                 reader,
                 writer,
-                self.command_rx.clone(),
                 self.message_tx.clone(),
+                self.is_processing.clone(),
             );
             let handle = tokio::spawn(async move {
                 output_adapter.await;

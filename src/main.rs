@@ -7,7 +7,16 @@ mod io;
 mod output;
 mod stages;
 
-use std::{borrow::Cow, fmt::Display, path::Path, process::exit};
+use std::{
+    borrow::Cow,
+    fmt::Display,
+    path::Path,
+    process::exit,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
+};
 
 use clap::{Parser, ValueEnum};
 use colored::*;
@@ -65,11 +74,15 @@ async fn main() -> anyhow::Result<()> {
     let (cmd_tx, cmd_rx): (Sender<ChannelCommand>, Receiver<ChannelCommand>) = flume::unbounded();
     let (msg_tx, msg_rx): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
 
+    let is_processing = Arc::new(AtomicBool::new(true));
+    let is_proc = Arc::clone(&is_processing);
+
     // handle ctrl_c
     tokio::spawn(async move {
-        debug!("received signal");
         tokio::signal::ctrl_c().await.unwrap();
+        info!("{}", format!("gracefully shutting down ...").yellow());
         cmd_tx.send(ChannelCommand::Quit).unwrap();
+        is_proc.store(false, Ordering::SeqCst);
     });
 
     // handle messages from channels
@@ -85,8 +98,14 @@ async fn main() -> anyhow::Result<()> {
                 ChannelMessage::Debug(i) => {
                     debug!("{}", i);
                 }
+                ChannelMessage::Shutdown => {
+                    debug!("message channel received Shutdown request");
+                    break;
+                }
             }
         }
+        // wait for channel to shutdown
+        let _ = msg_rx.recv();
     });
 
     // crate configuration
@@ -99,7 +118,8 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // the lists are going through a process of four stages
-    let mut download_controller = FilterController::new(config, cmd_rx, msg_tx);
+    let mut download_controller =
+        FilterController::new(config, msg_tx.clone(), is_processing.clone());
 
     // start the processing chain by downloading the filter lists
     info!("{}", format!("Downalading lists ...").yellow());
@@ -112,7 +132,9 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // the second stage extracts the URLs from the downloaded lists which come in heterogeneous formats
-    info!("{}", format!("Extracting domains ...").yellow());
+    if is_processing.load(Ordering::SeqCst) {
+        ("{}", format!("Extracting domains ...").yellow());
+    }
     let mut categorize_controller = match extract_controller.run().await {
         Ok(c) => c,
         Err(e) => {
@@ -122,7 +144,9 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // the third stage assembles the URLs into lists corresponding to the tags set in the configuration file
-    info!("{}", format!("Categorizing domains ...").yellow());
+    if is_processing.load(Ordering::SeqCst) {
+        info!("{}", format!("Categorizing domains ...").yellow());
+    }
     let mut output_controller = match categorize_controller.run().await {
         Ok(c) => c,
         Err(e) => {
@@ -132,7 +156,9 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // the fourth stage finally transforms the category lists into the desired output format
-    info!("{}", format!("Creating output files ...").yellow());
+    if is_processing.load(Ordering::SeqCst) {
+        info!("{}", format!("Creating output files ...").yellow());
+    }
     match output_controller.run().await {
         Ok(c) => c,
         Err(e) => {
@@ -140,5 +166,11 @@ async fn main() -> anyhow::Result<()> {
             exit(1);
         }
     };
+
+    msg_tx.send(ChannelMessage::Shutdown).unwrap_or_else(|m| {
+        debug!("filter_controller: {}", m);
+    });
+    // wait for channel to shutdown
+    let _ = cmd_rx.recv();
     Ok(())
 }
