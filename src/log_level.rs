@@ -2,6 +2,7 @@ use std::{borrow::Cow, fmt::Display};
 
 use clap::ValueEnum;
 
+/// LogLevel defines the severity of the logging event
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
 pub enum LogLevel {
     Debug,

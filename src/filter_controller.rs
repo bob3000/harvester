@@ -34,6 +34,7 @@ pub const TRANSFORM_PATH: &str = "transform";
 /// Sub path for the assembled categorized lists
 pub const CATEGORIZE_PATH: &str = "categorize";
 
+// enum specifying the severity level of a channel message
 pub enum ChannelMessage {
     Error(String),
     Info(String),

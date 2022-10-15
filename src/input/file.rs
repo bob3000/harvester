@@ -27,12 +27,19 @@ pub enum Handle {
 
 /// FileInput reads data from a File
 pub struct FileInput {
+    /// file compression method used
     compression: Option<Compression>,
+    /// path on the file system
     path: PathBuf,
+    /// the file handle
     handle: Option<Handle>,
 }
 
 impl FileInput {
+    /// Crates new file input
+    ///
+    /// * `path`: path on the file system
+    /// * `compression`: the files compression to be expected
     pub fn new(path: PathBuf, compression: Option<Compression>) -> Self {
         Self {
             compression,
@@ -41,6 +48,7 @@ impl FileInput {
         }
     }
 
+    /// initializes the file handle according to the specified compression format
     async fn init_handle(&mut self) -> anyhow::Result<()> {
         let f = File::open(self.path.clone()).await.with_context(|| {
             format!(
@@ -85,6 +93,10 @@ impl FileInput {
 #[async_trait]
 impl Input for FileInput {
     async fn chunk(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
+        /// inner function reading bytes until the next newline character
+        ///
+        /// * `archive`: the file handle to read from
+        /// * `vec_buf`: the target buffer containing the line
         async fn read_bytes_to_newline(
             archive: &mut (impl AsyncRead + Unpin),
             mut vec_buf: Vec<u8>,
@@ -98,6 +110,9 @@ impl Input for FileInput {
                                 return Ok(Some(vec_buf));
                             }
                         vec_buf.extend(byte_buf);
+                        if vec_buf.len() >= vec_buf.capacity() {
+                            return Err(anyhow::anyhow!("Error reading chunk from file: line lenght exceedes buffer capacity"));
+                        }
                     }
                     Err(e) => return Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
                     _ => return Ok(None),
@@ -105,7 +120,9 @@ impl Input for FileInput {
             }
         }
 
+        // read buffer size for a single line
         const BUF_SIZE: usize = 1024;
+
         if self.handle.is_none() {
             self.init_handle().await?;
         }
@@ -124,6 +141,7 @@ impl Input for FileInput {
         }
     }
 
+    /// reinitialize the file handle and start reading from zero
     async fn reset(&mut self) -> anyhow::Result<()> {
         if self.handle.is_some() {
             self.handle.take();

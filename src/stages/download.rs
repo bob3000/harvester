@@ -59,7 +59,7 @@ impl FilterController<StageDownload, UrlInput, File> {
     /// Equips the FilterListIO objects with a reader and writers
     ///
     /// * `raw_path`: the file system path to the directory where the raw lists
-    //                are going to be downloaded
+    ///               are going to be downloaded
     fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
         self.filter_lists = self
             .config

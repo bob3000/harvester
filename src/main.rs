@@ -51,9 +51,11 @@ async fn main() -> anyhow::Result<()> {
     let mut builder = env_logger::Builder::from_env(env);
     builder.format_timestamp(None).format_target(false).init();
 
+    // setup message channel to enable log output from tokio tasks
     let (msg_tx, msg_rx): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
     let message_rx = msg_rx.clone();
 
+    // is_processing determines if the program was interrupted or is still running
     let is_processing = Arc::new(AtomicBool::new(true));
     let is_proc = Arc::clone(&is_processing);
 

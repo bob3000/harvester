@@ -10,6 +10,9 @@ pub struct UrlInput {
 }
 
 impl UrlInput {
+    /// Initalize a new UrlInput
+    ///
+    /// * `url`: url to download from
     pub fn new(url: Url) -> Self {
         Self {
             url,
@@ -40,6 +43,7 @@ impl Input for UrlInput {
         }
     }
 
+    /// download again to read request body from zero
     async fn reset(&mut self) -> anyhow::Result<()> {
         if self.response.is_none() {
             self.response = Some(reqwest::get(self.url.clone()).await?);
