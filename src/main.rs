@@ -4,12 +4,11 @@ mod filter_controller;
 mod filter_list;
 mod input;
 mod io;
+mod log_level;
 mod output;
 mod stages;
 
 use std::{
-    borrow::Cow,
-    fmt::Display,
     path::Path,
     process::exit,
     sync::{
@@ -18,36 +17,17 @@ use std::{
     },
 };
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 use colored::*;
 use env_logger::Env;
 use filter_controller::{ChannelMessage, FilterController};
 use flume::{Receiver, Sender};
+use log_level::LogLevel;
 
 use crate::config::Config;
 
 #[macro_use]
 extern crate log;
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
-enum LogLevel {
-    Debug,
-    Info,
-    Warn,
-    Error,
-}
-
-impl Display for LogLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl From<&LogLevel> for Cow<'static, str> {
-    fn from(value: &LogLevel) -> Self {
-        return Cow::Owned(value.to_string());
-    }
-}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
