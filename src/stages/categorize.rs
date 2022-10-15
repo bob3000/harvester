@@ -97,7 +97,7 @@ impl FilterController<StageCategorize, FileInput, File> {
             let msg_tx = self.message_tx.clone();
 
             msg_tx
-                .send(ChannelMessage::Info(format!("{}", tag)))
+                .send(ChannelMessage::Info(tag.to_string()))
                 .unwrap_or_else(|m| {
                     debug!("filter_controller: {}", m);
                 });

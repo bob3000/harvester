@@ -91,7 +91,7 @@ impl FilterController<StageOutput, FileInput, File> {
                 return Ok(());
             }
             self.message_tx
-                .send(ChannelMessage::Info(format!("{}", list.name)))
+                .send(ChannelMessage::Info(list.name.to_string()))
                 .unwrap_or_else(|m| {
                     debug!("filter_controller: {}", m);
                 });

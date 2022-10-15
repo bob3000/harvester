@@ -41,10 +41,6 @@ pub enum ChannelMessage {
     Shutdown,
 }
 
-pub enum ChannelCommand {
-    Quit,
-}
-
 /// These structs represent the stages of a program run
 pub struct StageDownload;
 pub struct StageExtract;

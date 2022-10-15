@@ -21,7 +21,7 @@ use std::{
 use clap::{Parser, ValueEnum};
 use colored::*;
 use env_logger::Env;
-use filter_controller::{ChannelCommand, ChannelMessage, FilterController};
+use filter_controller::{ChannelMessage, FilterController};
 use flume::{Receiver, Sender};
 
 use crate::config::Config;
@@ -71,8 +71,8 @@ async fn main() -> anyhow::Result<()> {
     let mut builder = env_logger::Builder::from_env(env);
     builder.format_timestamp(None).format_target(false).init();
 
-    let (cmd_tx, cmd_rx): (Sender<ChannelCommand>, Receiver<ChannelCommand>) = flume::unbounded();
     let (msg_tx, msg_rx): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
+    let message_rx = msg_rx.clone();
 
     let is_processing = Arc::new(AtomicBool::new(true));
     let is_proc = Arc::clone(&is_processing);
@@ -80,8 +80,7 @@ async fn main() -> anyhow::Result<()> {
     // handle ctrl_c
     tokio::spawn(async move {
         tokio::signal::ctrl_c().await.unwrap();
-        info!("{}", format!("gracefully shutting down ...").yellow());
-        cmd_tx.send(ChannelCommand::Quit).unwrap();
+        info!("{}", "gracefully shutting down ...".yellow());
         is_proc.store(false, Ordering::SeqCst);
     });
 
@@ -122,7 +121,7 @@ async fn main() -> anyhow::Result<()> {
         FilterController::new(config, msg_tx.clone(), is_processing.clone());
 
     // start the processing chain by downloading the filter lists
-    info!("{}", format!("Downalading lists ...").yellow());
+    info!("{}", "Downalading lists ...".yellow());
     let mut extract_controller = match download_controller.run().await {
         Ok(c) => c,
         Err(e) => {
@@ -133,7 +132,7 @@ async fn main() -> anyhow::Result<()> {
 
     // the second stage extracts the URLs from the downloaded lists which come in heterogeneous formats
     if is_processing.load(Ordering::SeqCst) {
-        ("{}", format!("Extracting domains ...").yellow());
+        info!("{}", "Extracting domains ...".yellow());
     }
     let mut categorize_controller = match extract_controller.run().await {
         Ok(c) => c,
@@ -145,7 +144,7 @@ async fn main() -> anyhow::Result<()> {
 
     // the third stage assembles the URLs into lists corresponding to the tags set in the configuration file
     if is_processing.load(Ordering::SeqCst) {
-        info!("{}", format!("Categorizing domains ...").yellow());
+        info!("{}", "Categorizing domains ...".yellow());
     }
     let mut output_controller = match categorize_controller.run().await {
         Ok(c) => c,
@@ -157,7 +156,7 @@ async fn main() -> anyhow::Result<()> {
 
     // the fourth stage finally transforms the category lists into the desired output format
     if is_processing.load(Ordering::SeqCst) {
-        info!("{}", format!("Creating output files ...").yellow());
+        info!("{}", "Creating output files ...".yellow());
     }
     match output_controller.run().await {
         Ok(c) => c,
@@ -170,7 +169,15 @@ async fn main() -> anyhow::Result<()> {
     msg_tx.send(ChannelMessage::Shutdown).unwrap_or_else(|m| {
         debug!("filter_controller: {}", m);
     });
-    // wait for channel to shutdown
-    let _ = cmd_rx.recv();
+
+    // drain message channel
+    for msg in message_rx.drain() {
+        match msg {
+            ChannelMessage::Debug(i) => debug!("{}", i),
+            ChannelMessage::Error(i) => error!("{}", i),
+            ChannelMessage::Info(i) => info!("{}", i),
+            ChannelMessage::Shutdown => {}
+        }
+    }
     Ok(())
 }
