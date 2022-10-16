@@ -84,6 +84,9 @@ async fn main() -> anyhow::Result<()> {
                     debug!("message channel received Shutdown request");
                     break;
                 }
+                ChannelMessage::Warn(i) => {
+                    warn!("{}", i);
+                }
             }
         }
         // wait for channel to shutdown
@@ -159,6 +162,7 @@ async fn main() -> anyhow::Result<()> {
             ChannelMessage::Debug(i) => debug!("{}", i),
             ChannelMessage::Error(i) => error!("{}", i),
             ChannelMessage::Info(i) => info!("{}", i),
+            ChannelMessage::Warn(i) => warn!("{}", i),
             ChannelMessage::Shutdown => {}
         }
     }

@@ -40,6 +40,7 @@ pub enum ChannelMessage {
     Info(String),
     Debug(String),
     Shutdown,
+    Warn(String),
 }
 
 /// These structs represent the stages of a program run
@@ -187,6 +188,8 @@ where
             });
         let is_proc = Arc::clone(&is_processing);
         let handle = tokio::spawn(async move {
+            let mut chunks_matched = 0;
+            let mut chunks_skipped = 0;
             loop {
                 if !is_proc.load(Ordering::SeqCst) {
                     msg_tx
@@ -199,9 +202,10 @@ where
                 // stop task on quit message
                 let result = reader.lock().await.chunk().await;
                 match result {
-                    Ok(Some(chunk)) => {
-                        let chunk = fn_transform(list.clone(), Some(chunk)).await.unwrap();
-                        if let Some(chunk) = chunk {
+                    Ok(Some(chunk)) => match fn_transform(list.clone(), Some(chunk)).await {
+                        // regex matched
+                        Ok(Some(chunk)) => {
+                            chunks_matched += 1;
                             if let Err(e) = writer.lock().await.write_all(&chunk) {
                                 msg_tx
                                     .send(ChannelMessage::Error(format!("{}", e)))
@@ -211,10 +215,26 @@ where
                                     });
                             }
                         }
-                    }
+                        // regex did not match
+                        Ok(None) => {
+                            chunks_skipped += 1;
+                        }
+                        // regex error
+                        Err(e) => {
+                            msg_tx
+                                .send(ChannelMessage::Error(format!("Error: {}", e)))
+                                .with_context(|| "error sending ChannelMessage")
+                                .unwrap_or_else(|m| {
+                                    debug!("filter_controller: {}", m);
+                                });
+                            break;
+                        }
+                    },
+                    // reader exhausted
                     Ok(None) => {
                         break;
                     }
+                    // reader error
                     Err(e) => {
                         msg_tx
                             .send(ChannelMessage::Error(format!("Error: {}", e)))
@@ -225,6 +245,20 @@ where
                         break;
                     }
                 }
+            }
+            if chunks_matched == 0 {
+                msg_tx
+                    .send(ChannelMessage::Warn(format!(
+                        "No lines machted in list {}",
+                        list.id
+                    )))
+                    .with_context(|| "error sending ChannelMessage")
+                    .unwrap_or_else(|m| {
+                        debug!("filter_controller: {}", m);
+                    });
+            } else {
+                debug!("{} lines matched in list {}", chunks_matched, list.id);
+                debug!("{} lines skipped in list {}", chunks_skipped, list.id);
             }
         });
         handles.push(handle);
@@ -258,6 +292,7 @@ mod tests {
         let filter_list = FilterList {
             id: "".to_string(),
             compression: None,
+            comment: None,
             source: "".to_string(),
             tags: vec![],
             regex: "".to_string(),

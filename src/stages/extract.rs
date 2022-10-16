@@ -26,7 +26,10 @@ async fn regex_match(
             return Err(anyhow::anyhow!("Error: {}", e));
         }
     };
-    let re = Regex::new(&flist.regex).unwrap();
+    let re = match Regex::new(&flist.regex) {
+        Ok(r) => r,
+        Err(e) => return Err(anyhow::anyhow!(format!("List {} - {}", flist.id, e))),
+    };
     if let Some(caps) = re.captures(&str_chunk) && let Some(cap) = caps.get(1) {
                     let result = cap.as_str().to_owned() + "\n";
                     return Ok(Some(result.as_bytes().to_owned()));
@@ -104,6 +107,7 @@ mod tests {
         let filter_list = FilterList {
             id: "test_list".to_string(),
             compression: None,
+            comment: None,
             source: "".to_string(),
             tags: vec![],
             regex,
@@ -125,6 +129,7 @@ mod tests {
         let filter_list = FilterList {
             id: "test_list".to_string(),
             compression: None,
+            comment: None,
             source: "".to_string(),
             tags: vec![],
             regex,
