@@ -1,0 +1,59 @@
+{
+  "tmp_dir": "./tmp",
+  "out_dir": "./out",
+  "out_format": "Hostsfile",
+  "lists": [
+    {
+      "id": "urlhouse",
+      "source": "https://urlhaus.abuse.ch/downloads/hostfile/",
+      "tags": ["malware"],
+      "regex": "^127\\.0\\.0\\.1\\t(.*)"
+    },
+    {
+      "id": "ut-capitole",
+      "source": "https://dsi.ut-capitole.fr/blacklists/download/phishing.tar.gz",
+      "tags": ["malware"],
+      "compression": {
+        "type": "TarGz",
+        "archive_list_file": "phishing/domains"
+      },
+      "regex": "^(.*)"
+    },
+    {
+      "id": "durablenapkin",
+      "source": "https://raw.githubusercontent.com/durablenapkin/scamblocklist/master/hosts.txt",
+      "tags": ["security"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "piholeparser",
+      "source": "https://raw.githubusercontent.com/deathbybandaid/piholeparser/master/Subscribable-Lists/ParsedBlacklists/Disconnect-Malvertising-Filter.txt",
+      "tags": ["security"],
+      "regex": "^([^#].*)$"
+    },
+    {
+      "id": "Spam404",
+      "source": "https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt",
+      "tags": ["security"],
+      "regex": "^([^#].*)$"
+    },
+    {
+      "id": "StevenBlack",
+      "source": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
+      "tags": ["privacy"],
+      "regex": "^0\\.0\\.0\\.0 (.*)$"
+    },
+    {
+      "id": "RooneyMcNibNug",
+      "source": "https://raw.githubusercontent.com/RooneyMcNibNug/pihole-stuff/master/SNAFU.txt",
+      "tags": ["privacy"],
+      "regex": "^([^#].*)$"
+    },
+    {
+      "id": "crazy-max",
+      "source": "https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/extra.txt",
+      "tags": ["microsoft", "privacy", "security"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    }
+  ]
+}
