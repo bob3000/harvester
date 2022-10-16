@@ -7,6 +7,7 @@ mod io;
 mod log_level;
 mod output;
 mod stages;
+mod tests;
 
 use std::{
     path::Path,

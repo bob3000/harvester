@@ -234,49 +234,24 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::io::Cursor;
+
     use crate::filter_list::FilterList;
-    use async_trait::async_trait;
+    use crate::tests::helper::cursor_input::CursorInput;
     use flume::Receiver;
     use futures::future::join_all;
-    use std::io::{Cursor, Read};
 
     use super::*;
 
-    /// TestInput implements the Input trait using Cursors
-    #[derive(Debug)]
-    struct TestInput {
-        cursor: Cursor<String>,
-    }
-
-    #[async_trait]
-    impl Input for TestInput {
-        async fn chunk(&mut self) -> anyhow::Result<Option<Vec<u8>>> {
-            let mut buf = vec![0; 32];
-            let n = self.cursor.read(&mut buf)?;
-            if n == 0 {
-                Ok(None)
-            } else {
-                Ok(Some(buf.to_vec()))
-            }
-        }
-
-        async fn reset(&mut self) -> anyhow::Result<()> {
-            self.cursor.set_position(0);
-            Ok(())
-        }
-    }
-
-    #[tokio::test]
     /// tests the `process` function using the TestInput to avoid writing files
+    #[tokio::test]
     async fn test_process() {
         // create input data
-        let input_data = "line one\nline two\n".to_string();
-        let cursor = Cursor::new(input_data.clone());
-        let input = Arc::new(Mutex::new(TestInput { cursor }));
+        let input_data = "line one\nline two\n";
+        let input = Arc::new(Mutex::new(CursorInput::new(input_data)));
         // set up output sink
         let output = Arc::new(Mutex::new(Cursor::new(vec![0, 32])));
         let (msg_tx, _): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
-
         let is_processing = Arc::new(AtomicBool::new(true));
 
         // apply the data to the FilterList object
@@ -289,7 +264,7 @@ mod tests {
         };
 
         // wrap the Filterlist in the FilterListIO object
-        let mut filter_list_io: FilterListIO<TestInput, Cursor<Vec<u8>>> =
+        let mut filter_list_io: FilterListIO<CursorInput, Cursor<Vec<u8>>> =
             FilterListIO::new(filter_list);
         filter_list_io.reader = Some(input);
         filter_list_io.writer = Some(output.clone());
