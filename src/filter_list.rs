@@ -7,7 +7,9 @@ use crate::input::file::Compression;
 pub struct FilterList {
     /// can be any string, must be unique among all filter lists
     pub id: String,
-    // compressed indicated if the downloaded list will be a compressed archive
+    /// a field to add comments to the configuration file
+    pub comment: Option<String>,
+    /// compressed indicated if the downloaded list will be a compressed archive
     pub compression: Option<Compression>,
     /// source is the path to where to get the list from (probably a URL)
     pub source: String,
