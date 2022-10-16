@@ -19,6 +19,6 @@ impl Display for LogLevel {
 
 impl From<&LogLevel> for Cow<'static, str> {
     fn from(value: &LogLevel) -> Self {
-        return Cow::Owned(value.to_string());
+        Cow::Owned(value.to_string())
     }
 }

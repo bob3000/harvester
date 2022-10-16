@@ -10,7 +10,7 @@ use futures::{future::join_all, lock::Mutex};
 use tokio::task::JoinHandle;
 
 use crate::{
-    filter_controller::{ChannelMessage, FilterController, StageOutput, CATEGORIZE_PATH},
+    filter_controller::{FilterController, StageOutput, CATEGORIZE_PATH},
     input::file::FileInput,
     io::category_list_io::CategoryListIO,
 };
@@ -90,19 +90,13 @@ impl FilterController<StageOutput, FileInput, File> {
             if !self.is_processing.load(Ordering::SeqCst) {
                 return Ok(());
             }
-            self.message_tx
-                .send(ChannelMessage::Info(list.name.to_string()))
-                .unwrap_or_else(|m| {
-                    debug!("filter_controller: {}", m);
-                });
+            info!("{}", list.name);
             let reader = Arc::clone(&list.reader.take().unwrap());
             let writer = Arc::clone(&list.writer.take().unwrap());
-            let output_adapter = self.config.out_format.get_adapter(
-                reader,
-                writer,
-                self.message_tx.clone(),
-                self.is_processing.clone(),
-            );
+            let output_adapter =
+                self.config
+                    .out_format
+                    .get_adapter(reader, writer, self.is_processing.clone());
             let handle = tokio::spawn(async move {
                 output_adapter.await;
             });

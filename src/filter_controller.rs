@@ -10,7 +10,6 @@ use std::{
 };
 
 use anyhow::Context;
-use flume::Sender;
 use futures::{lock::Mutex, Future};
 use reqwest::Url;
 use tokio::task::JoinHandle;
@@ -34,15 +33,6 @@ pub const TRANSFORM_PATH: &str = "transform";
 /// Sub path for the assembled categorized lists
 pub const CATEGORIZE_PATH: &str = "categorize";
 
-// enum specifying the severity level of a channel message
-pub enum ChannelMessage {
-    Error(String),
-    Info(String),
-    Debug(String),
-    Shutdown,
-    Warn(String),
-}
-
 /// These structs represent the stages of a program run
 pub struct StageDownload;
 pub struct StageExtract;
@@ -54,7 +44,6 @@ pub struct StageOutput;
 pub struct FilterController<Stage, R: Input + Send, W: Write + Send> {
     pub stage: PhantomData<Stage>,
     pub config: Config,
-    pub message_tx: Sender<ChannelMessage>,
     pub filter_lists: Vec<FilterListIO<R, W>>,
     pub category_lists: Vec<CategoryListIO<R, W>>,
     pub is_processing: Arc<AtomicBool>,
@@ -140,7 +129,6 @@ pub fn create_out_file<R: Input + Send>(
 pub async fn process<SRC, DST, FN, RES>(
     filter_lists: &mut Vec<FilterListIO<SRC, DST>>,
     fn_transform: &'static FN,
-    message_tx: Sender<ChannelMessage>,
     is_processing: Arc<AtomicBool>,
 ) -> Vec<JoinHandle<()>>
 where
@@ -176,27 +164,15 @@ where
         };
         let filter_list = Arc::new(filter_list.clone());
         let list = Arc::clone(&filter_list);
-        let msg_tx = message_tx.clone();
 
-        msg_tx
-            .send(ChannelMessage::Info(format!(
-                "{}: {}",
-                filter_list.id, filter_list.source
-            )))
-            .unwrap_or_else(|m| {
-                debug!("filter_controller: {}", m);
-            });
+        info!("{}: {}", filter_list.id, filter_list.source);
         let is_proc = Arc::clone(&is_processing);
         let handle = tokio::spawn(async move {
             let mut chunks_matched = 0;
             let mut chunks_skipped = 0;
             loop {
                 if !is_proc.load(Ordering::SeqCst) {
-                    msg_tx
-                        .send(ChannelMessage::Debug("quitting task".to_string()))
-                        .unwrap_or_else(|m| {
-                            debug!("filter_controller: {}", m);
-                        });
+                    debug!("quitting task: {}", list.id);
                     return;
                 }
                 // stop task on quit message
@@ -207,12 +183,7 @@ where
                         Ok(Some(chunk)) => {
                             chunks_matched += 1;
                             if let Err(e) = writer.lock().await.write_all(&chunk) {
-                                msg_tx
-                                    .send(ChannelMessage::Error(format!("{}", e)))
-                                    .with_context(|| "error sending ChannelMessage")
-                                    .unwrap_or_else(|m| {
-                                        debug!("filter_controller: {}", m);
-                                    });
+                                error!("{}", e);
                             }
                         }
                         // regex did not match
@@ -221,12 +192,7 @@ where
                         }
                         // regex error
                         Err(e) => {
-                            msg_tx
-                                .send(ChannelMessage::Error(format!("Error: {}", e)))
-                                .with_context(|| "error sending ChannelMessage")
-                                .unwrap_or_else(|m| {
-                                    debug!("filter_controller: {}", m);
-                                });
+                            error!("Error: {}", e);
                             break;
                         }
                     },
@@ -236,29 +202,16 @@ where
                     }
                     // reader error
                     Err(e) => {
-                        msg_tx
-                            .send(ChannelMessage::Error(format!("Error: {}", e)))
-                            .with_context(|| "error sending ChannelMessage")
-                            .unwrap_or_else(|m| {
-                                debug!("filter_controller: {}", m);
-                            });
+                        error!("Error: {}", e);
                         break;
                     }
                 }
             }
             if chunks_matched == 0 {
-                msg_tx
-                    .send(ChannelMessage::Warn(format!(
-                        "No lines machted in list {}",
-                        list.id
-                    )))
-                    .with_context(|| "error sending ChannelMessage")
-                    .unwrap_or_else(|m| {
-                        debug!("filter_controller: {}", m);
-                    });
+                warn!("No lines machted in list {}", list.id);
             } else {
-                debug!("{} lines matched in list {}", chunks_matched, list.id);
-                debug!("{} lines skipped in list {}", chunks_skipped, list.id);
+                debug!("{}: {} lines matched", list.id, chunks_matched);
+                debug!("{}: {} lines skipped", list.id, chunks_skipped);
             }
         });
         handles.push(handle);
@@ -272,7 +225,6 @@ mod tests {
 
     use crate::filter_list::FilterList;
     use crate::tests::helper::cursor_input::CursorInput;
-    use flume::Receiver;
     use futures::future::join_all;
 
     use super::*;
@@ -285,7 +237,6 @@ mod tests {
         let input = Arc::new(Mutex::new(CursorInput::new(input_data)));
         // set up output sink
         let output = Arc::new(Mutex::new(Cursor::new(vec![0, 32])));
-        let (msg_tx, _): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
         let is_processing = Arc::new(AtomicBool::new(true));
 
         // apply the data to the FilterList object
@@ -308,7 +259,6 @@ mod tests {
         let handles = process(
             &mut vec![filter_list_io],
             &|_, c| async { Ok(c) },
-            msg_tx,
             is_processing.clone(),
         )
         .await;

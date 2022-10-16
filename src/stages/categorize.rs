@@ -14,8 +14,8 @@ use tokio::task::JoinHandle;
 
 use crate::{
     filter_controller::{
-        get_input_file, ChannelMessage, FilterController, StageCategorize, StageOutput,
-        CATEGORIZE_PATH, TRANSFORM_PATH,
+        get_input_file, FilterController, StageCategorize, StageOutput, CATEGORIZE_PATH,
+        TRANSFORM_PATH,
     },
     input::{file::FileInput, Input},
     io::filter_list_io::FilterListIO,
@@ -36,7 +36,6 @@ impl FilterController<StageCategorize, FileInput, File> {
         let categorize_controller = FilterController::<StageOutput, FileInput, File> {
             stage: PhantomData,
             config: self.config.clone(),
-            message_tx: self.message_tx.clone(),
             filter_lists: vec![],
             category_lists: vec![],
             is_processing: self.is_processing.clone(),
@@ -95,13 +94,8 @@ impl FilterController<StageCategorize, FileInput, File> {
             out_path.push(&tag);
             let f = File::create(out_path).with_context(|| "could not create out file")?;
             let mut buf_writer = BufWriter::new(f);
-            let msg_tx = self.message_tx.clone();
 
-            msg_tx
-                .send(ChannelMessage::Info(tag.to_string()))
-                .unwrap_or_else(|m| {
-                    debug!("filter_controller: {}", m);
-                });
+            info!("{}", tag.to_string());
 
             // include all list into the category which have the currently processed tag attached
             let include_lists = self
@@ -135,12 +129,7 @@ impl FilterController<StageCategorize, FileInput, File> {
             let handle = tokio::spawn(async move {
                 for line in tree_set {
                     if let Err(e) = buf_writer.write_all(line.as_bytes()) {
-                        msg_tx
-                            .send(ChannelMessage::Error(format!("{:?}", e)))
-                            .with_context(|| "error sending ChannelMessage")
-                            .unwrap_or_else(|m| {
-                                debug!("categorize: {}", m);
-                            });
+                        error!("{:?}", e);
                         break;
                     }
                 }

@@ -6,11 +6,9 @@ use std::{
     },
 };
 
-use anyhow::Context;
-use flume::Sender;
 use futures::lock::Mutex;
 
-use crate::{filter_controller::ChannelMessage, input::Input};
+use crate::input::Input;
 
 /// hostsfile_adapter translates the extracted URLs int a hosts file format
 /// as found in /etc/hosts
@@ -22,7 +20,6 @@ use crate::{filter_controller::ChannelMessage, input::Input};
 pub async fn hostsfile_adapter(
     reader: Arc<Mutex<dyn Input + Send>>,
     writer: Arc<Mutex<dyn Write + Send>>,
-    msg_tx: Sender<ChannelMessage>,
     is_processing: Arc<AtomicBool>,
 ) {
     loop {
@@ -40,20 +37,14 @@ pub async fn hostsfile_adapter(
                 };
                 let chunk = format!("0.0.0.0 {}\n", str_chunk.trim_end());
                 if let Err(e) = writer.lock().await.write_all(chunk.as_bytes()) {
-                    msg_tx
-                        .send(ChannelMessage::Error(format!("{}", e)))
-                        .with_context(|| "error writing out file")
-                        .unwrap();
+                    error!("{}", e);
                 }
             }
             Ok(None) => {
                 break;
             }
             Err(e) => {
-                msg_tx
-                    .send(ChannelMessage::Error(format!("{}", e)))
-                    .with_context(|| "error sending ChannelMessage")
-                    .unwrap();
+                error!("{}", e);
                 break;
             }
         }
@@ -65,7 +56,6 @@ mod tests {
     use crate::tests::helper::cursor_input::CursorInput;
 
     use super::*;
-    use flume::Receiver;
     use std::io::Cursor;
 
     #[tokio::test]
@@ -75,10 +65,9 @@ mod tests {
         let input = Arc::new(Mutex::new(CursorInput::new(input_data)));
         // set up output sink
         let output = Arc::new(Mutex::new(Cursor::new(vec![0, 32])));
-        let (msg_tx, _): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
         let is_processing = Arc::new(AtomicBool::new(true));
 
-        hostsfile_adapter(input, output.clone(), msg_tx, is_processing).await;
+        hostsfile_adapter(input, output.clone(), is_processing).await;
         let o = output.lock().await.clone().into_inner();
         let expect = "0.0.0.0 domain.one\n0.0.0.0 domain.two\n";
         let got = String::from_utf8_lossy(&o);
