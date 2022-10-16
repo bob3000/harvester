@@ -89,6 +89,7 @@ impl FilterController<StageCategorize, FileInput, File> {
             if !self.is_processing.load(Ordering::SeqCst) {
                 return Ok(());
             }
+            // QUESTION: is there a better data structure to enable concurrent access?
             let mut tree_set: BTreeSet<String> = BTreeSet::new();
             let mut out_path = categorize_path.clone();
             out_path.push(&tag);
@@ -102,11 +103,13 @@ impl FilterController<StageCategorize, FileInput, File> {
                     debug!("filter_controller: {}", m);
                 });
 
+            // include all list into the category which have the currently processed tag attached
             let include_lists = self
                 .filter_lists
                 .iter_mut()
                 .filter(|l| l.filter_list.tags.contains(&tag));
 
+            // read lines from the included list and insert them into a tree set to remove duplicates
             for incl in include_lists {
                 let reader = match incl.reader.as_mut() {
                     Some(r) => r,
