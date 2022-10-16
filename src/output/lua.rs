@@ -1,5 +1,4 @@
 use std::{
-    fs::File,
     io::Write,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -11,10 +10,7 @@ use anyhow::Context;
 use flume::Sender;
 use futures::lock::Mutex;
 
-use crate::{
-    filter_controller::ChannelMessage,
-    input::{file::FileInput, Input},
-};
+use crate::{filter_controller::ChannelMessage, input::Input};
 
 /// lua_adapter translates the extracted URLs int a lua module format
 ///
@@ -23,8 +19,8 @@ use crate::{
 /// * `cmd_rx`: channel listening for commands
 /// * `msg_tx`: channel for messaging
 pub async fn lua_adapter(
-    reader: Arc<Mutex<FileInput>>,
-    writer: Arc<Mutex<File>>,
+    reader: Arc<Mutex<dyn Input + Send>>,
+    writer: Arc<Mutex<dyn Write + Send>>,
     msg_tx: Sender<ChannelMessage>,
     is_processing: Arc<AtomicBool>,
 ) {
@@ -79,5 +75,31 @@ pub async fn lua_adapter(
                 break;
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::tests::helper::cursor_input::CursorInput;
+
+    use super::*;
+    use flume::Receiver;
+    use std::io::Cursor;
+
+    #[tokio::test]
+    async fn test_luafile_adapter() {
+        // create input data
+        let input_data = "domain.one\ndomain.two\n";
+        let input = Arc::new(Mutex::new(CursorInput::new(input_data)));
+        // set up output sink
+        let output = Arc::new(Mutex::new(Cursor::new(vec![0, 32])));
+        let (msg_tx, _): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
+        let is_processing = Arc::new(AtomicBool::new(true));
+
+        lua_adapter(input, output.clone(), msg_tx, is_processing).await;
+        let o = output.lock().await.clone().into_inner();
+        let expect = "return {\n  \"domain.one\",\n  \"domain.two\",\n}";
+        let got = String::from_utf8_lossy(&o);
+        assert_eq!(got, expect);
     }
 }
