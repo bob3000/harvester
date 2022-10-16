@@ -10,7 +10,7 @@
       "regex": "^127\\.0\\.0\\.1\\t(.*)"
     },
     {
-      "id": "ut-capitole",
+      "id": "ut-capitole-phishing",
       "source": "https://dsi.ut-capitole.fr/blacklists/download/phishing.tar.gz",
       "tags": ["malware"],
       "compression": {
@@ -22,37 +22,101 @@
     {
       "id": "durablenapkin",
       "source": "https://raw.githubusercontent.com/durablenapkin/scamblocklist/master/hosts.txt",
-      "tags": ["security"],
+      "tags": ["malware"],
       "regex": "^0\\.0\\.0\\.0 (.*)"
     },
     {
-      "id": "piholeparser",
-      "source": "https://raw.githubusercontent.com/deathbybandaid/piholeparser/master/Subscribable-Lists/ParsedBlacklists/Disconnect-Malvertising-Filter.txt",
-      "tags": ["security"],
+      "id": "digitalside",
+      "source": "https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt",
+      "tags": ["malware"],
       "regex": "^([^#].*)$"
+    },
+    {
+      "id": "quidsup",
+      "source": "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt",
+      "tags": ["malware"],
+      "regex": "^([^# ].*)$"
     },
     {
       "id": "Spam404",
       "source": "https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt",
-      "tags": ["security"],
+      "tags": ["malware"],
       "regex": "^([^#].*)$"
+    },
+    {
+      "id": "HorusTeknoloji",
+      "source": "https://raw.githubusercontent.com/HorusTeknoloji/TR-PhishingList/master/url-lists.txt",
+      "tags": ["malware"],
+      "regex": "^(.*)"
+    },
+    {
+      "id": "abuse-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/abuse-nl.txt",
+      "tags": ["malware"],
+      "regex": "^([^# ].*)$"
+    },
+    {
+      "id": "fraud-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/fraud-nl.txt",
+      "tags": ["malware"],
+      "regex": "^([^# ].*)$"
+    },
+    {
+      "id": "malware-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/malware-nl.txt",
+      "tags": ["malware"],
+      "regex": "^([^# ].*)$"
+    },
+    {
+      "id": "phishing-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/phishing-nl.txt",
+      "tags": ["malware"],
+      "regex": "^([^# ].*)$"
+    },
+    {
+      "id": "ransomware-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/ransomware-nl.txt",
+      "tags": ["malware"],
+      "regex": "^([^# ].*)$"
+    },
+    {
+      "id": "scam-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/scam-nl.txt",
+      "tags": ["malware"],
+      "regex": "^([^# ].*)$"
+    },
+    {
+      "id": "PolishFiltersTeam",
+      "source": "https://raw.githubusercontent.com/PolishFiltersTeam/KADhosts/master/KADhosts.txt",
+      "tags": ["malware"],
+      "regex": "^([^# ].*)$"
+    },
+    {
+      "id": "ut-capitole-ddos",
+      "source": "https://dsi.ut-capitole.fr/blacklists/download/ddos.tar.gz",
+      "tags": ["malware"],
+      "compression": {
+        "type": "TarGz",
+        "archive_list_file": "ddos/domains"
+      },
+      "regex": "^(.*)"
     },
     {
       "id": "StevenBlack",
       "source": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
-      "tags": ["privacy"],
+      "tags": ["tracking"],
       "regex": "^0\\.0\\.0\\.0 (.*)$"
     },
     {
       "id": "RooneyMcNibNug",
       "source": "https://raw.githubusercontent.com/RooneyMcNibNug/pihole-stuff/master/SNAFU.txt",
-      "tags": ["privacy"],
+      "tags": ["tracking"],
       "regex": "^([^#].*)$"
     },
     {
-      "id": "crazy-max",
+      "id": "crazy-max-extra",
       "source": "https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/extra.txt",
-      "tags": ["microsoft", "privacy", "security"],
+      "tags": ["microsoft"],
       "regex": "^0\\.0\\.0\\.0 (.*)"
     }
   ]
