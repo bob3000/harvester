@@ -13,6 +13,27 @@ use crate::{
     io::filter_list_io::FilterListIO,
 };
 
+async fn regex_match(
+    flist: Arc<FilterList>,
+    chunk: Option<Vec<u8>>,
+) -> anyhow::Result<Option<Vec<u8>>> {
+    if chunk.is_none() {
+        return Ok(None);
+    }
+    let str_chunk = match String::from_utf8(chunk.unwrap()) {
+        Ok(s) => s,
+        Err(e) => {
+            return Err(anyhow::anyhow!("Error: {}", e));
+        }
+    };
+    let re = Regex::new(&flist.regex).unwrap();
+    if let Some(caps) = re.captures(&str_chunk) && let Some(cap) = caps.get(1) {
+                    let result = cap.as_str().to_owned() + "\n";
+                    return Ok(Some(result.as_bytes().to_owned()));
+                }
+    Ok(None)
+}
+
 /// This implementation for FileInput and File is the second stage where URLs are
 /// being extracted
 impl FilterController<StageExtract, FileInput, File> {
@@ -63,28 +84,58 @@ impl FilterController<StageExtract, FileInput, File> {
     async fn extract(&mut self) -> anyhow::Result<()> {
         let handles = process(
             &mut self.filter_lists,
-            &|flist: Arc<FilterList>, chunk: Option<Vec<u8>>| async move {
-                if chunk.is_none() {
-                    return Ok(None);
-                }
-                let str_chunk = match String::from_utf8(chunk.unwrap()) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        return Err(anyhow::anyhow!("Error: {}", e));
-                    }
-                };
-                let re = Regex::new(&flist.regex).unwrap();
-                if let Some(caps) = re.captures(&str_chunk) && let Some(cap) = caps.get(1) {
-                    let result = cap.as_str().to_owned() + "\n";
-                    return Ok(Some(result.as_bytes().to_owned()));
-                }
-                Ok(None)
-            },
+            &regex_match,
             self.message_tx.clone(),
             self.is_processing.clone(),
         )
         .await;
         join_all(handles).await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn test_regex_match_positive() {
+        let regex = "^0.0.0.0 (.*)".to_string();
+        let filter_list = FilterList {
+            id: "test_list".to_string(),
+            compression: None,
+            source: "".to_string(),
+            tags: vec![],
+            regex,
+        };
+        let chunk = Vec::from("0.0.0.0 domain.tech\n");
+
+        let got = regex_match(Arc::new(filter_list), Some(chunk))
+            .await
+            .unwrap()
+            .unwrap();
+        let want = Vec::from("domain.tech\n");
+
+        assert_eq!(got, want);
+    }
+
+    #[tokio::test]
+    async fn test_regex_no_match_comment() {
+        let regex = "^0.0.0.0 (.*)".to_string();
+        let filter_list = FilterList {
+            id: "test_list".to_string(),
+            compression: None,
+            source: "".to_string(),
+            tags: vec![],
+            regex,
+        };
+        let chunk = Vec::from("# some comment\n");
+
+        let got = regex_match(Arc::new(filter_list), Some(chunk))
+            .await
+            .unwrap();
+        let want: Option<Vec<u8>> = None;
+
+        assert_eq!(got, want);
     }
 }
