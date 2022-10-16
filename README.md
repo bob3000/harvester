@@ -47,6 +47,17 @@ Example:
       "regex": "^0\\.0\\.0\\.0 (.*)"
     },
     {
+      "id": "ut-capitole",
+      "comment": "this list resides in a tar archive",
+      "source": "https://dsi.ut-capitole.fr/blacklists/download/phishing.tar.gz",
+      "tags": ["malware"],
+      "compression": {
+        "type": "TarGz",
+        "archive_list_file": "phishing/domains"
+      },
+      "regex": "^(.*)"
+    },
+    {
       "id": "piholeparser",
       "source": "https://raw.githubusercontent.com/deathbybandaid/piholeparser/master/Subscribable-Lists/ParsedBlacklists/Disconnect-Malvertising-Filter.txt",
       "tags": ["security"],
@@ -98,18 +109,33 @@ The result format
 
 A list of block list descriptions to be downloaded
 
-#### id
+##### id
 
 A random id which must be unique among all list ids
 
-#### source
+##### comment
+
+An optional field to add comments to the config file
+
+##### compression
+
+An optional field to configure the compression used if any. Possible values are
+`Gz` or `TarGz`
+
+###### archive_list_file
+
+If the configured compression is `TarGz` this field is needed to specify where
+the list file is to be found within the archive. The value ist supposed to be a
+path relative to the archive's root (e.g `tar/thelist.txt`)
+
+##### source
 
 The URL where the list can be downloaded
 
-#### tags
+##### tags
 
 A tag describes in which assembled category list a source list will end up
 
-#### regex
+##### regex
 
 A regular expression applied to every line of a source list to extract the URL
