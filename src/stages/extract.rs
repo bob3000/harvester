@@ -54,7 +54,6 @@ impl FilterController<StageExtract, FileInput, File> {
         let categorize_controller = FilterController::<StageCategorize, FileInput, File> {
             stage: PhantomData,
             config: self.config.clone(),
-            message_tx: self.message_tx.clone(),
             filter_lists: vec![],
             category_lists: vec![],
             is_processing: self.is_processing.clone(),
@@ -88,7 +87,6 @@ impl FilterController<StageExtract, FileInput, File> {
         let handles = process(
             &mut self.filter_lists,
             &regex_match,
-            self.message_tx.clone(),
             self.is_processing.clone(),
         )
         .await;

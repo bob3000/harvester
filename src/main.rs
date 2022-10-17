@@ -21,8 +21,7 @@ use std::{
 use clap::Parser;
 use colored::*;
 use env_logger::Env;
-use filter_controller::{ChannelMessage, FilterController};
-use flume::{Receiver, Sender};
+use filter_controller::FilterController;
 use log_level::LogLevel;
 
 use crate::config::Config;
@@ -52,10 +51,6 @@ async fn main() -> anyhow::Result<()> {
     let mut builder = env_logger::Builder::from_env(env);
     builder.format_timestamp(None).format_target(false).init();
 
-    // setup message channel to enable log output from tokio tasks
-    let (msg_tx, msg_rx): (Sender<ChannelMessage>, Receiver<ChannelMessage>) = flume::unbounded();
-    let message_rx = msg_rx.clone();
-
     // is_processing determines if the program was interrupted or is still running
     let is_processing = Arc::new(AtomicBool::new(true));
     let is_proc = Arc::clone(&is_processing);
@@ -65,32 +60,6 @@ async fn main() -> anyhow::Result<()> {
         tokio::signal::ctrl_c().await.unwrap();
         info!("{}", "gracefully shutting down ...".yellow());
         is_proc.store(false, Ordering::SeqCst);
-    });
-
-    // handle messages from channels
-    tokio::spawn(async move {
-        while let Ok(msg) = msg_rx.recv() {
-            match msg {
-                ChannelMessage::Error(e) => {
-                    error!("{}", e);
-                }
-                ChannelMessage::Info(i) => {
-                    info!("{}", i);
-                }
-                ChannelMessage::Debug(i) => {
-                    debug!("{}", i);
-                }
-                ChannelMessage::Shutdown => {
-                    debug!("message channel received Shutdown request");
-                    break;
-                }
-                ChannelMessage::Warn(i) => {
-                    warn!("{}", i);
-                }
-            }
-        }
-        // wait for channel to shutdown
-        let _ = msg_rx.recv();
     });
 
     // crate configuration
@@ -103,8 +72,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // the lists are going through a process of four stages
-    let mut download_controller =
-        FilterController::new(config, msg_tx.clone(), is_processing.clone());
+    let mut download_controller = FilterController::new(config, is_processing.clone());
 
     // start the processing chain by downloading the filter lists
     info!("{}", "Downalading lists ...".yellow());
@@ -151,20 +119,5 @@ async fn main() -> anyhow::Result<()> {
             exit(1);
         }
     };
-
-    msg_tx.send(ChannelMessage::Shutdown).unwrap_or_else(|m| {
-        debug!("filter_controller: {}", m);
-    });
-
-    // drain message channel
-    for msg in message_rx.drain() {
-        match msg {
-            ChannelMessage::Debug(i) => debug!("{}", i),
-            ChannelMessage::Error(i) => error!("{}", i),
-            ChannelMessage::Info(i) => info!("{}", i),
-            ChannelMessage::Warn(i) => warn!("{}", i),
-            ChannelMessage::Shutdown => {}
-        }
-    }
     Ok(())
 }
