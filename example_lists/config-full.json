@@ -29,19 +29,19 @@
       "id": "digitalside",
       "source": "https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt",
       "tags": ["malware"],
-      "regex": "^([^#].*)$"
+      "regex": "^([^#].*)"
     },
     {
       "id": "quidsup",
       "source": "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt",
       "tags": ["malware"],
-      "regex": "^([^# ].*)$"
+      "regex": "^([^# ].*)"
     },
     {
       "id": "Spam404",
       "source": "https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt",
       "tags": ["malware"],
-      "regex": "^([^#].*)$"
+      "regex": "^([^#].*)"
     },
     {
       "id": "HorusTeknoloji",
@@ -53,43 +53,43 @@
       "id": "abuse-nl",
       "source": "https://blocklistproject.github.io/Lists/alt-version/abuse-nl.txt",
       "tags": ["malware"],
-      "regex": "^([^# ].*)$"
+      "regex": "^([^# ].*)"
     },
     {
       "id": "fraud-nl",
       "source": "https://blocklistproject.github.io/Lists/alt-version/fraud-nl.txt",
       "tags": ["malware"],
-      "regex": "^([^# ].*)$"
+      "regex": "^([^# ].*)"
     },
     {
       "id": "malware-nl",
       "source": "https://blocklistproject.github.io/Lists/alt-version/malware-nl.txt",
       "tags": ["malware"],
-      "regex": "^([^# ].*)$"
+      "regex": "^([^# ].*)"
     },
     {
       "id": "phishing-nl",
       "source": "https://blocklistproject.github.io/Lists/alt-version/phishing-nl.txt",
       "tags": ["malware"],
-      "regex": "^([^# ].*)$"
+      "regex": "^([^# ].*)"
     },
     {
       "id": "ransomware-nl",
       "source": "https://blocklistproject.github.io/Lists/alt-version/ransomware-nl.txt",
       "tags": ["malware"],
-      "regex": "^([^# ].*)$"
+      "regex": "^([^# ].*)"
     },
     {
       "id": "scam-nl",
       "source": "https://blocklistproject.github.io/Lists/alt-version/scam-nl.txt",
       "tags": ["malware"],
-      "regex": "^([^# ].*)$"
+      "regex": "^([^# ].*)"
     },
     {
       "id": "PolishFiltersTeam",
       "source": "https://raw.githubusercontent.com/PolishFiltersTeam/KADhosts/master/KADhosts.txt",
       "tags": ["malware"],
-      "regex": "^([^# ].*)$"
+      "regex": "^([^# ].*)"
     },
     {
       "id": "ut-capitole-ddos",
@@ -105,19 +105,245 @@
       "id": "StevenBlack",
       "source": "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts",
       "tags": ["tracking"],
-      "regex": "^0\\.0\\.0\\.0 (.*)$"
+      "regex": "^0\\.0\\.0\\.0 (.*)"
     },
     {
-      "id": "RooneyMcNibNug",
+      "id": "Easyprivacy",
+      "source": "https://v.firebog.net/hosts/Easyprivacy.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "notrack-blocklist",
+      "source": "https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-blocklist.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "android-tracking",
+      "source": "https://raw.githubusercontent.com/Perflyst/PiHoleBlocklist/master/android-tracking.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "AdguardDNS",
+      "source": "https://v.firebog.net/hosts/AdguardDNS.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "adservers",
+      "source": "https://raw.githubusercontent.com/anudeepND/blacklist/master/adservers.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "SNAFU",
       "source": "https://raw.githubusercontent.com/RooneyMcNibNug/pihole-stuff/master/SNAFU.txt",
       "tags": ["tracking"],
-      "regex": "^([^#].*)$"
+      "regex": "^([^# ].*)"
     },
     {
-      "id": "crazy-max-extra",
+      "id": "hosts0",
+      "source": "https://hostsfile.mine.nu/hosts0.txt",
+      "tags": ["tracking"],
+      "regex": "^0\\.0\\.0\\.0[\t](.*)"
+    },
+    {
+      "id": "Easylist",
+      "source": "https://v.firebog.net/hosts/Easylist.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "2o7Net",
+      "source": "https://raw.githubusercontent.com/FadeMind/hosts.extras/master/add.2o7Net/hosts",
+      "tags": ["tracking"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "firstparty-trackers-hosts",
+      "source": "https://hostfiles.frogeye.fr/firstparty-trackers-hosts.txt",
+      "tags": ["tracking"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "ads-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/ads-nl.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "tracking-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/tracking-nl.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "energized",
+      "source": "https://block.energized.pro/basic/formats/domains.txt",
+      "tags": ["tracking"],
+      "regex": "^([^# ].*)"
+    },
+    {
+      "id": "bigdargon",
+      "source": "https://raw.githubusercontent.com/bigdargon/hostsVN/master/hosts",
+      "tags": ["tracking"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "crazy-max-spy",
+      "source": "https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/spy.txt",
+      "tags": ["tracking"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "smart-tv-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/smart-tv-nl.txt",
+      "tags": ["tracking"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "GoodbyeAds",
+      "source": "https://raw.githubusercontent.com/jerryn70/GoodbyeAds/master/Hosts/GoodbyeAds.txt",
+      "tags": ["tracking"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "GoodbyeAds-Xiaomi-Extension",
+      "source": "https://raw.githubusercontent.com/jerryn70/GoodbyeAds/master/Extension/GoodbyeAds-Xiaomi-Extension.txt",
+      "tags": ["tracking"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "GoodbyeAds-Samsung-AdBlock",
+      "source": "https://raw.githubusercontent.com/jerryn70/GoodbyeAds/master/Extension/GoodbyeAds-Samsung-AdBlock.txt",
+      "tags": ["tracking"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "publicite",
+      "source": "https://dsi.ut-capitole.fr/blacklists/download/publicite.tar.gz",
+      "compression": {
+        "type": "TarGz",
+        "archive_list_file": "publicite/domains"
+      },
+      "tags": ["tracking"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "pihole-google",
+      "source": "https://raw.githubusercontent.com/nickspaargaren/no-google/master/pihole-google.txt",
+      "tags": ["google"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "facebook-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/facebook-nl.txt",
+      "tags": ["facebook"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "whatsapp-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/whatsapp-nl.txt",
+      "tags": ["facebook"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "tiktok-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/tiktok-nl.txt",
+      "tags": ["tiktok"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "crazy-max-win-extra",
       "source": "https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/extra.txt",
       "tags": ["microsoft"],
       "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "crazy-max-win-update",
+      "source": "https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/update.txt",
+      "tags": ["microsoft"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "crypto-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/crypto-nl.txt",
+      "tags": ["crypto"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "capitole-bitcoin",
+      "source": "https://dsi.ut-capitole.fr/blacklists/download/bitcoin.tar.gz",
+      "compression": {
+        "type": "TarGz",
+        "archive_list_file": "bitcoin/domains"
+      },
+      "tags": ["crypto"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "capitole-cryptojacking",
+      "source": "https://dsi.ut-capitole.fr/blacklists/download/cryptojacking.tar.gz",
+      "compression": {
+        "type": "TarGz",
+        "archive_list_file": "cryptojacking/domains"
+      },
+      "tags": ["crypto"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "Sinfonietta",
+      "source": "https://raw.githubusercontent.com/Sinfonietta/hostfiles/master/pornography-hosts",
+      "tags": ["porn"],
+      "regex": "^0\\.0\\.0\\.0 (.*)"
+    },
+    {
+      "id": "pi_blocklist_porn_all",
+      "source": "https://raw.githubusercontent.com/chadmayfield/pihole-blocklists/master/lists/pi_blocklist_porn_all.list",
+      "tags": ["porn"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "energized-porn",
+      "source": "https://block.energized.pro/porn/formats/domains.txt",
+      "tags": ["porn"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "snuff-hosts",
+      "source": "https://raw.githubusercontent.com/Sinfonietta/hostfiles/master/snuff-hosts",
+      "tags": ["porn"],
+      "regex": "^127\\.0\\.0\\.1 (.*)"
+    },
+    {
+      "id": "capitole-adult",
+      "source": "https://dsi.ut-capitole.fr/blacklists/download/adult.tar.gz",
+      "compression": {
+        "type": "TarGz",
+        "archive_list_file": "adult/domains"
+      },
+      "tags": ["porn"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "mhxion-ads",
+      "source": "https://raw.githubusercontent.com/mhxion/pornaway/master/hosts/porn_ads.txt",
+      "tags": ["porn"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "mhxion-sites",
+      "source": "https://raw.githubusercontent.com/mhxion/pornaway/master/hosts/porn_sites.txt",
+      "tags": ["porn"],
+      "regex": "^([^#].*)"
+    },
+    {
+      "id": "porn-nl",
+      "source": "https://blocklistproject.github.io/Lists/alt-version/porn-nl.txt",
+      "tags": ["porn"],
+      "regex": "^([^#].*)"
     }
   ]
 }
