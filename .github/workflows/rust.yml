@@ -22,7 +22,7 @@ jobs:
         rustup update
         rustup install nightly
         rustup default nightly
-        rustup component add clippy
+        rustup component add clippy rustfmt
 
     - name: Toolchain info
       run: |
