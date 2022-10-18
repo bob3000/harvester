@@ -1,4 +1,5 @@
 use crate::input::Input;
+use anyhow::Context;
 use async_trait::async_trait;
 use reqwest::{StatusCode, Url};
 
@@ -30,7 +31,8 @@ impl Input for UrlInput {
 
         let status_code = self.response.as_ref().unwrap().status();
         if status_code != StatusCode::OK {
-            return Err(anyhow::anyhow!("status code {}: {}", status_code, self.url,));
+            return Err(anyhow::anyhow!("status code {}: {}", status_code, self.url,))
+                .with_context(|| format!("{}", self.url));
         }
 
         match self.response.as_mut().unwrap().chunk().await {
@@ -39,7 +41,7 @@ impl Input for UrlInput {
                 Ok(Some(r))
             }
             Ok(None) => Ok(None),
-            Err(e) => Err(anyhow::anyhow!(e)),
+            Err(e) => Err(anyhow::anyhow!(e)).with_context(|| format!("{}", self.url)),
         }
     }
 

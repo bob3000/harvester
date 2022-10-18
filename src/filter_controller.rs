@@ -96,7 +96,8 @@ pub fn get_input_file<W: Write + Send>(
 ///
 /// * `list`: the FilterListIO object to receive the URL object
 pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Result<()> {
-    let url = Url::parse(&list.filter_list.source)?;
+    let url = Url::parse(&list.filter_list.source)
+        .with_context(|| format!("config file error: {:?}", &list.filter_list))?;
     let input = UrlInput::new(url);
     list.reader = Some(Arc::new(Mutex::new(input)));
     Ok(())

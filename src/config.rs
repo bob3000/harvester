@@ -20,9 +20,8 @@ impl Config {
     ///
     /// * `path`: file system path the the configuration file
     pub fn load(path: &Path) -> anyhow::Result<Self> {
-        let contents = fs::read_to_string(path)?;
-        let config: Config =
-            serde_json::from_str(&contents).with_context(|| "invalid configuration file")?;
+        let contents = fs::read_to_string(path).with_context(|| "error reading config file")?;
+        let config: Config = serde_json::from_str(&contents).with_context(|| "invalid json")?;
         let Self {
             lists,
             tmp_dir,
