@@ -37,7 +37,7 @@ impl<R: Input + Send, W: Write + Send> FilterListIO<R, W> {
 }
 
 impl<R: Input + Send> FilterListIO<R, File> {
-    /// returns the writers's content length
+    /// returns the writer's content length
     pub async fn writer_len(&self) -> anyhow::Result<u64> {
         if self.writer.is_none() {
             return Err(anyhow::anyhow!("writer attribute is None"));
