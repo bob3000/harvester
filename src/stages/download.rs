@@ -11,8 +11,8 @@ use futures::future::join_all;
 use crate::{
     config::Config,
     filter_controller::{
-        create_input_urls, create_out_file, process, FilterController, StageDownload, StageExtract,
-        RAW_PATH,
+        create_input_urls, create_out_file, get_out_file, process, FilterController, StageDownload,
+        StageExtract, RAW_PATH,
     },
     input::{file::FileInput, url::UrlInput},
     io::filter_list_io::FilterListIO,
@@ -37,7 +37,7 @@ impl FilterController<StageDownload, UrlInput, File> {
         let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
         raw_path.push(RAW_PATH);
 
-        self.prepare_download(raw_path.clone())?;
+        self.prepare_download(raw_path.clone()).await?;
         self.download().await?;
         let extract_controller = FilterController::<StageExtract, FileInput, File> {
             stage: PhantomData,
@@ -53,20 +53,24 @@ impl FilterController<StageDownload, UrlInput, File> {
     ///
     /// * `raw_path`: the file system path to the directory where the raw lists
     ///               are going to be downloaded
-    fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
-        self.filter_lists = self
+    async fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
+        let configured_lists: Vec<FilterListIO<UrlInput, File>> = self
             .config
             .lists
             .iter()
             .map(|f| FilterListIO::new(f.clone()))
             .collect();
-        self.filter_lists
-            .iter_mut()
-            .try_for_each(|l| -> anyhow::Result<()> {
-                create_input_urls(l)?;
-                create_out_file(l, raw_path.clone())?;
-                Ok(())
-            })?;
+
+        for mut list in configured_lists.into_iter() {
+            create_input_urls(&mut list)?;
+            get_out_file(&mut list, &raw_path)?;
+            if !list.is_cached().await? {
+                create_out_file(&mut list, &raw_path)?;
+                self.filter_lists.push(list);
+            } else {
+                info!("List {} is cached, skipping", list.filter_list.id);
+            }
+        }
         Ok(())
     }
 

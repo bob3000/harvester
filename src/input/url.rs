@@ -1,17 +1,17 @@
 use crate::input::Input;
 use anyhow::Context;
 use async_trait::async_trait;
-use reqwest::{StatusCode, Url};
+use reqwest::{Response, StatusCode, Url};
 
 /// UrlInput downloads data from an Url
 #[derive(Debug)]
 pub struct UrlInput {
-    url: Url,
+    pub url: Url,
     response: Option<reqwest::Response>,
 }
 
 impl UrlInput {
-    /// Initalize a new UrlInput
+    /// Initialize a new UrlInput
     ///
     /// * `url`: url to download from
     pub fn new(url: Url) -> Self {
@@ -19,6 +19,18 @@ impl UrlInput {
             url,
             response: None,
         }
+    }
+
+    /// perform a head request and return the response
+    pub async fn head_request(&self) -> anyhow::Result<Response> {
+        let cli = reqwest::Client::new();
+        let header = cli.head(self.url.clone()).send().await?;
+        let status_code = header.status();
+        if status_code != StatusCode::OK {
+            return Err(anyhow::anyhow!("status code {}: {}", status_code, self.url,))
+                .with_context(|| format!("{}", self.url));
+        }
+        Ok(header)
     }
 }
 
@@ -51,5 +63,12 @@ impl Input for UrlInput {
             self.response = Some(reqwest::get(self.url.clone()).await?);
         }
         Ok(())
+    }
+
+    /// get the file length from file metadata
+    async fn len(&mut self) -> anyhow::Result<u64> {
+        let head = self.head_request().await?;
+        head.content_length()
+            .with_context(|| "no field 'content-lenght' available")
     }
 }
