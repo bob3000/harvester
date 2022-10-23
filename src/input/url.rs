@@ -1,7 +1,7 @@
 use crate::input::Input;
 use anyhow::Context;
 use async_trait::async_trait;
-use reqwest::{Response, StatusCode, Url};
+use reqwest::{header::CONTENT_LENGTH, Response, StatusCode, Url};
 
 /// UrlInput downloads data from an Url
 #[derive(Debug)]
@@ -68,7 +68,18 @@ impl Input for UrlInput {
     /// get the file length from file metadata
     async fn len(&mut self) -> anyhow::Result<u64> {
         let head = self.head_request().await?;
-        head.content_length()
-            .with_context(|| "no field 'content-lenght' available")
+        let header_content_len: String = head
+            .headers()
+            .get(CONTENT_LENGTH)
+            .with_context(|| {
+                format!(
+                    "request to {} returned without header {}",
+                    self.url, CONTENT_LENGTH
+                )
+            })?
+            .to_str()?
+            .into();
+        let content_length = header_content_len.parse().unwrap();
+        Ok(content_length)
     }
 }
