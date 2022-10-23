@@ -265,7 +265,7 @@
       "id": "crazy-max-win-update",
       "source": "https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/update.txt",
       "tags": ["microsoft"],
-      "regex": "^([^#].*)"
+      "regex": "^0\\.0\\.0\\.0 (.*)"
     },
     {
       "id": "crypto-nl",
