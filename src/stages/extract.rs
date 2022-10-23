@@ -5,8 +5,8 @@ use regex::Regex;
 
 use crate::{
     filter_controller::{
-        create_out_file, get_input_file, process, FilterController, StageCategorize, StageExtract,
-        RAW_PATH, TRANSFORM_PATH,
+        create_out_file, get_input_file, get_out_file, process, FilterController, StageCategorize,
+        StageExtract, RAW_PATH, TRANSFORM_PATH,
     },
     filter_list::FilterList,
     input::file::FileInput,
@@ -49,7 +49,8 @@ impl FilterController<StageExtract, FileInput, File> {
         let mut trans_path = PathBuf::from_str(&self.config.tmp_dir)?;
         trans_path.push(TRANSFORM_PATH);
 
-        self.prepare_extract(raw_path.clone(), trans_path.clone())?;
+        self.prepare_extract(raw_path.clone(), trans_path.clone())
+            .await?;
         self.extract().await?;
         let categorize_controller = FilterController::<StageCategorize, FileInput, File> {
             stage: PhantomData,
@@ -65,20 +66,29 @@ impl FilterController<StageExtract, FileInput, File> {
     ///
     /// * `raw_path`: the file system path to where the downloaded lists were stored
     /// * `extract_path`: the file system path to where the extracted URLs are written to
-    fn prepare_extract(&mut self, raw_path: PathBuf, extract_path: PathBuf) -> anyhow::Result<()> {
-        self.filter_lists = self
+    async fn prepare_extract(
+        &mut self,
+        raw_path: PathBuf,
+        extract_path: PathBuf,
+    ) -> anyhow::Result<()> {
+        let configured_lists: Vec<FilterListIO<FileInput, File>> = self
             .config
             .lists
             .iter()
             .map(|f| FilterListIO::new(f.clone()))
             .collect();
-        self.filter_lists
-            .iter_mut()
-            .try_for_each(|l| -> anyhow::Result<()> {
-                get_input_file::<File>(l, raw_path.clone(), l.filter_list.compression.clone())?;
-                create_out_file::<FileInput>(l, extract_path.clone())?;
-                Ok(())
-            })?;
+
+        for mut list in configured_lists.into_iter() {
+            let compression = list.filter_list.compression.clone();
+            get_input_file(&mut list, &raw_path, compression)?;
+            get_out_file(&mut list, &extract_path)?;
+            if !list.is_cached().await? {
+                create_out_file(&mut list, &extract_path)?;
+                self.filter_lists.push(list);
+            } else {
+                debug!("List {} is cached, skipping", list.filter_list.id);
+            }
+        }
         Ok(())
     }
 

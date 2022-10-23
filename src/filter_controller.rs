@@ -2,7 +2,7 @@ use std::{
     fs::{self, File},
     io::Write,
     marker::PhantomData,
-    path::PathBuf,
+    path::Path,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
@@ -57,7 +57,7 @@ pub struct FilterController<Stage, R: Input + Send, W: Write + Send> {
 /// * `base_dir`: the file system path to be searched
 pub fn get_input_file<W: Write + Send>(
     list: &mut FilterListIO<FileInput, W>,
-    base_dir: PathBuf,
+    base_dir: &Path,
     compression: Option<Compression>,
 ) -> anyhow::Result<()> {
     let mut contents =
@@ -103,16 +103,31 @@ pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Res
     Ok(())
 }
 
+/// Tries to read the potential output file for inspection
+///
+/// * `list`: the FilterListIO object to receive the writer
+/// * `base_dir`: the base directory where the output file is tried to read
+pub fn get_out_file<R: Input + Send>(
+    list: &mut FilterListIO<R, File>,
+    base_dir: &Path,
+) -> anyhow::Result<()> {
+    let out_path = base_dir;
+    out_path.to_path_buf().push(&list.filter_list.id);
+    let out_file = File::open(out_path).with_context(|| "could not open out file for reading")?;
+    list.writer = Some(Arc::new(Mutex::new(out_file)));
+    Ok(())
+}
+
 /// Creates and output file and it's parent directories, opens the file for writing
 /// and attaches it to the given FilterListIO object
 ///
 /// * `list`: the FilterListIO object to receive the writer
-/// * `base_dir`: the base directory where the output directory is being created
+/// * `base_dir`: the base directory where the output file is being created
 pub fn create_out_file<R: Input + Send>(
     list: &mut FilterListIO<R, File>,
-    base_dir: PathBuf,
+    base_dir: &Path,
 ) -> anyhow::Result<()> {
-    let mut out_path = base_dir;
+    let mut out_path = base_dir.to_path_buf();
     fs::create_dir_all(&out_path).with_context(|| "could not create out directory")?;
     out_path.push(&list.filter_list.id);
     let out_file = File::create(out_path).with_context(|| "could not write out file")?;

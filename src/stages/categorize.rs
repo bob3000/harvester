@@ -70,7 +70,7 @@ impl FilterController<StageCategorize, FileInput, File> {
         self.filter_lists
             .iter_mut()
             .try_for_each(|l| -> anyhow::Result<()> {
-                get_input_file::<File>(l, extract_path.clone(), None)?;
+                get_input_file(l, &extract_path, None)?;
                 l.writer = None;
                 Ok(())
             })?;

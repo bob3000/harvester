@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::{
-    fs::File,
+    fs::{self, File},
     io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader},
 };
 use tokio_tar::{Archive, Entry};
@@ -148,5 +148,19 @@ impl Input for FileInput {
         }
         self.init_handle().await?;
         Ok(())
+    }
+
+    /// get the file length from file metadata
+    async fn len(&mut self) -> anyhow::Result<u64> {
+        let content_len = fs::metadata(&self.path)
+            .await
+            .with_context(|| {
+                format!(
+                    "file {} has no length",
+                    self.path.to_str().unwrap_or_else(|| "<no-name>")
+                )
+            })?
+            .len();
+        Ok(content_len)
     }
 }
