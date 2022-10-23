@@ -97,7 +97,7 @@ impl Input for FileInput {
         ///
         /// * `archive`: the file handle to read from
         /// * `vec_buf`: the target buffer containing the line
-        async fn read_bytes_to_newline(
+        async fn read_bytes_till_newline(
             archive: &mut (impl AsyncRead + Unpin),
             mut vec_buf: Vec<u8>,
         ) -> anyhow::Result<Option<Vec<u8>>> {
@@ -111,7 +111,7 @@ impl Input for FileInput {
                             }
                         vec_buf.extend(byte_buf);
                         if vec_buf.len() >= vec_buf.capacity() {
-                            return Err(anyhow::anyhow!("Error reading chunk from file: line lenght exceedes buffer capacity"));
+                            return Err(anyhow::anyhow!("Error reading chunk from file: line length exceeds buffer capacity"));
                         }
                     }
                     Err(e) => return Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
@@ -136,8 +136,8 @@ impl Input for FileInput {
                 Ok(_) => Ok(None),
                 Err(e) => Err(anyhow::anyhow!("Error reading line from file: {}", e)),
             },
-            Handle::Gz(archive) => read_bytes_to_newline(archive, vec_buf).await,
-            Handle::TarGz(archive) => read_bytes_to_newline(archive, vec_buf).await,
+            Handle::Gz(archive) => read_bytes_till_newline(archive, vec_buf).await,
+            Handle::TarGz(archive) => read_bytes_till_newline(archive, vec_buf).await,
         }
     }
 
