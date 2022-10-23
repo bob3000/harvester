@@ -5,8 +5,8 @@ use regex::Regex;
 
 use crate::{
     filter_controller::{
-        create_out_file, get_input_file, get_out_file, process, FilterController, StageCategorize,
-        StageExtract, RAW_PATH, TRANSFORM_PATH,
+        create_out_file, get_input_file, process, FilterController, StageCategorize, StageExtract,
+        RAW_PATH, TRANSFORM_PATH,
     },
     filter_list::FilterList,
     input::file::FileInput,
@@ -81,13 +81,8 @@ impl FilterController<StageExtract, FileInput, File> {
         for mut list in configured_lists.into_iter() {
             let compression = list.filter_list.compression.clone();
             get_input_file(&mut list, &raw_path, compression)?;
-            get_out_file(&mut list, &extract_path)?;
-            if !list.is_cached().await? {
-                create_out_file(&mut list, &extract_path)?;
-                self.filter_lists.push(list);
-            } else {
-                debug!("List {} is cached, skipping", list.filter_list.id);
-            }
+            create_out_file(&mut list, &extract_path)?;
+            self.filter_lists.push(list);
         }
         Ok(())
     }
