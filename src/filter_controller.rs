@@ -112,7 +112,8 @@ pub fn get_out_file<R: Input + Send>(
     base_dir: &Path,
 ) -> anyhow::Result<()> {
     let out_path = base_dir;
-    out_path.to_path_buf().push(&list.filter_list.id);
+    let mut out_path = out_path.to_path_buf();
+    out_path.push(&list.filter_list.id);
     let out_file = File::open(out_path).with_context(|| "could not open out file for reading")?;
     list.writer = Some(Arc::new(Mutex::new(out_file)));
     Ok(())
