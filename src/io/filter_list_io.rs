@@ -56,7 +56,7 @@ impl<R: Input + Send> FilterListIO<R, File> {
         let r_len = self.reader_len().await?;
         let w_len = self.writer_len().await?;
         debug!(
-            "List {} has reader length: {}, writer lenght: {}",
+            "List {} has reader length: {}, writer length: {}",
             self.filter_list.id, r_len, w_len
         );
         Ok(r_len == w_len)

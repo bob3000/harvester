@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeSet, HashSet},
     fs::{self, File},
     io::{BufWriter, Write},
     marker::PhantomData,
@@ -33,14 +33,15 @@ impl FilterController<StageCategorize, FileInput, File> {
 
         self.prepare_categorize(extract_path.clone())?;
         self.categorize(categorize_path).await?;
-        let categorize_controller = FilterController::<StageOutput, FileInput, File> {
+        let output_controller = FilterController::<StageOutput, FileInput, File> {
             stage: PhantomData,
             config: self.config.clone(),
+            cached_lists: self.cached_lists.take(),
             filter_lists: vec![],
             category_lists: vec![],
             is_processing: self.is_processing.clone(),
         };
-        Ok(categorize_controller)
+        Ok(output_controller)
     }
 
     /// extracts all existing tags from the filter list configuration
@@ -61,6 +62,7 @@ impl FilterController<StageCategorize, FileInput, File> {
     /// * `extract_path`: The directory where the extracted data from the previous
     ///                   step was stored
     fn prepare_categorize(&mut self, extract_path: PathBuf) -> anyhow::Result<()> {
+        // repopulate filterlists from config file to include all once more
         self.filter_lists = self
             .config
             .lists
@@ -95,13 +97,32 @@ impl FilterController<StageCategorize, FileInput, File> {
             let f = File::create(out_path).with_context(|| "could not create out file")?;
             let mut buf_writer = BufWriter::new(f);
 
-            info!("{}", tag.to_string());
-
             // include all list into the category which have the currently processed tag attached
-            let include_lists = self
+            let include_lists: Vec<&mut FilterListIO<FileInput, File>> = self
                 .filter_lists
                 .iter_mut()
-                .filter(|l| l.filter_list.tags.contains(&tag));
+                .filter(|l| l.filter_list.tags.contains(&tag))
+                .collect();
+
+            // get the list ids of all included lists
+            let include_ids: HashSet<String> = include_lists
+                .iter()
+                .map(|list| list.filter_list.id.clone())
+                .collect();
+
+            // calculate the difference between included lists an cached lists
+            let difference: HashSet<&String> = include_ids
+                .difference(&self.cached_lists.as_ref().unwrap())
+                .collect();
+
+            // if there is no difference between cached lists and included lists there is no need for action
+            if difference.is_empty() {
+                self.cached_lists.as_mut().unwrap().insert(tag.clone());
+                info!("List {} cached, skipping", tag.to_string());
+                continue;
+            }
+
+            info!("{}", tag.to_string());
 
             // read lines from the included list and insert them into a tree set to remove duplicates
             for incl in include_lists {
