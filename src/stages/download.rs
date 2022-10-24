@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs::File,
     marker::PhantomData,
     path::PathBuf,
@@ -25,6 +26,7 @@ impl FilterController<StageDownload, UrlInput, File> {
         Self {
             stage: PhantomData,
             config,
+            cached_lists: Some(HashSet::new()),
             filter_lists: vec![],
             category_lists: vec![],
             is_processing,
@@ -41,6 +43,7 @@ impl FilterController<StageDownload, UrlInput, File> {
         self.download().await?;
         let extract_controller = FilterController::<StageExtract, FileInput, File> {
             stage: PhantomData,
+            cached_lists: self.cached_lists.take(),
             config: self.config.clone(),
             filter_lists: vec![],
             category_lists: vec![],
@@ -69,6 +72,10 @@ impl FilterController<StageDownload, UrlInput, File> {
                 self.filter_lists.push(list);
             } else {
                 info!("List {} is cached, skipping", list.filter_list.id);
+                self.cached_lists
+                    .as_mut()
+                    .unwrap()
+                    .insert(list.filter_list.id);
             }
         }
         Ok(())
