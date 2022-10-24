@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     fs::{self, File},
     io::Write,
     marker::PhantomData,
@@ -44,6 +45,7 @@ pub struct StageOutput;
 pub struct FilterController<Stage, R: Input + Send, W: Write + Send> {
     pub stage: PhantomData<Stage>,
     pub config: Config,
+    pub cached_lists: Option<HashSet<String>>,
     pub filter_lists: Vec<FilterListIO<R, W>>,
     pub category_lists: Vec<CategoryListIO<R, W>>,
     pub is_processing: Arc<AtomicBool>,
