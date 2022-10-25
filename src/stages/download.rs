@@ -4,7 +4,10 @@ use std::{
     marker::PhantomData,
     path::PathBuf,
     str::FromStr,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 use futures::future::join_all;
@@ -65,13 +68,24 @@ impl FilterController<StageDownload, UrlInput, File> {
             .collect();
 
         for mut list in configured_lists.into_iter() {
+            if !self.is_processing.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+
             create_input_urls(&mut list)?;
-            get_out_file(&mut list, &raw_path)?;
-            if !list.is_cached().await? {
+
+            let mut is_cached = false;
+            // we can only check for a cached result if the former downloaded file is available
+            if let Ok(_) = get_out_file(&mut list, &raw_path) {
+                debug!("{}: cached file not found", list.filter_list.id);
+                is_cached = list.is_cached().await?;
+            }
+            if !is_cached {
+                info!("Updated: {}", list.filter_list.id);
                 create_out_file(&mut list, &raw_path)?;
                 self.filter_lists.push(list);
             } else {
-                info!("List {} is cached, skipping", list.filter_list.id);
+                info!("Unchanged: {}", list.filter_list.id);
                 self.cached_lists
                     .as_mut()
                     .unwrap()
