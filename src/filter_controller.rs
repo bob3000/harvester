@@ -184,7 +184,6 @@ where
         let filter_list = Arc::new(filter_list.clone());
         let list = Arc::clone(&filter_list);
 
-        info!("{}: {}", filter_list.id, filter_list.source);
         let is_proc = Arc::clone(&is_processing);
         let handle = tokio::spawn(async move {
             let mut chunks_matched = 0;

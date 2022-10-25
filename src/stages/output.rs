@@ -92,10 +92,10 @@ impl FilterController<StageOutput, FileInput, File> {
             }
             // do nothing if the list was already written on the last run
             if self.cached_lists.as_ref().unwrap().contains(&list.name) {
-                info!("List {} cached, skipping", list.name);
+                info!("Unchanged: {}", list.name);
                 return Ok(());
             }
-            info!("{}", list.name);
+            info!("Updated: {}", list.name);
             let reader = Arc::clone(&list.reader.take().unwrap());
             let writer = Arc::clone(&list.writer.take().unwrap());
             let output_adapter =
