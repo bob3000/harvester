@@ -72,6 +72,7 @@ impl Input for UrlInput {
             .headers()
             .get(CONTENT_LENGTH)
             .with_context(|| {
+                debug!("Headers {}: {:#?}", self.url, head.headers());
                 format!(
                     "request to {} returned without header {}",
                     self.url, CONTENT_LENGTH
