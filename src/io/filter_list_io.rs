@@ -53,8 +53,20 @@ impl<R: Input + Send> FilterListIO<R, File> {
     /// is_cached compares the reader's length to the writer's length
     /// if both are equal we assume no further action will be necessary
     pub async fn is_cached(&mut self) -> anyhow::Result<bool> {
-        let r_len = self.reader_len().await?;
-        let w_len = self.writer_len().await?;
+        let r_len = match self.reader_len().await {
+            Ok(l) => l,
+            Err(e) => {
+                warn!("{}", e);
+                return Ok(false);
+            }
+        };
+        let w_len = match self.writer_len().await {
+            Ok(l) => l,
+            Err(e) => {
+                debug!("{}", e);
+                return Ok(false);
+            }
+        };
         debug!(
             "List {} has reader length: {}, writer length: {}",
             self.filter_list.id, r_len, w_len
