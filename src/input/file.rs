@@ -19,6 +19,7 @@ pub enum Compression {
     TarGz(String),
 }
 
+#[derive(Debug)]
 pub enum Handle {
     File(BufReader<File>),
     Gz(GzipDecoder<BufReader<File>>),
@@ -26,6 +27,7 @@ pub enum Handle {
 }
 
 /// FileInput reads data from a File
+#[derive(Debug)]
 pub struct FileInput {
     /// file compression method used
     compression: Option<Compression>,
