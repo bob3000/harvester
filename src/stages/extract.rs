@@ -10,6 +10,7 @@ use crate::{
     },
     filter_list::FilterList,
     input::file::FileInput,
+    io::filter_list_io::FilterListIO,
 };
 
 async fn regex_match(
@@ -71,30 +72,28 @@ impl FilterController<StageExtract, FileInput, File> {
         raw_path: PathBuf,
         extract_path: PathBuf,
     ) -> anyhow::Result<()> {
-        self.filter_lists
+        let configured_lists: Vec<FilterListIO<FileInput, File>> = self
+            .config
+            .lists
             .iter()
-            .filter(|list| {
-                self.cached_lists
-                    .as_ref()
-                    .unwrap()
-                    .contains(&list.filter_list.id)
-            })
-            .for_each(|list| {
-                // FIXME: why is this not printed?
-                info!("List {} is cached, skipping", list.filter_list.id);
-            });
+            .map(|f| FilterListIO::new(f.clone()))
+            .collect();
 
-        self.filter_lists.retain(|list| {
-            self.cached_lists
+        for mut list in configured_lists {
+            if self
+                .cached_lists
                 .as_ref()
                 .unwrap()
                 .contains(&list.filter_list.id)
-        });
-        for list in self.filter_lists.iter_mut() {
-            info!("{}", list.filter_list.id);
-            let compression = list.filter_list.compression.clone();
-            get_input_file(list, &raw_path, compression)?;
-            create_out_file(list, &extract_path)?;
+            {
+                info!("Unchanged: {}", list.filter_list.id);
+            } else {
+                info!("Updated: {}", list.filter_list.id);
+                let compression = list.filter_list.compression.clone();
+                get_input_file(&mut list, &raw_path, compression)?;
+                create_out_file(&mut list, &extract_path)?;
+                self.filter_lists.push(list);
+            }
         }
         Ok(())
     }
