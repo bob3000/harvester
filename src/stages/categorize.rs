@@ -90,12 +90,6 @@ impl FilterController<StageCategorize, FileInput, File> {
             if !self.is_processing.load(Ordering::SeqCst) {
                 return Ok(());
             }
-            // QUESTION: is there a better data structure to enable concurrent access?
-            let mut tree_set: BTreeSet<String> = BTreeSet::new();
-            let mut out_path = categorize_path.clone();
-            out_path.push(&tag);
-            let f = File::create(out_path).with_context(|| "could not create out file")?;
-            let mut buf_writer = BufWriter::new(f);
 
             // include all list into the category which have the currently processed tag attached
             let include_lists: Vec<&mut FilterListIO<FileInput, File>> = self
@@ -112,17 +106,24 @@ impl FilterController<StageCategorize, FileInput, File> {
 
             // calculate the difference between included lists an cached lists
             let difference: HashSet<&String> = include_ids
-                .difference(&self.cached_lists.as_ref().unwrap())
+                .difference(self.cached_lists.as_ref().unwrap())
                 .collect();
 
             // if there is no difference between cached lists and included lists there is no need for action
             if difference.is_empty() {
                 self.cached_lists.as_mut().unwrap().insert(tag.clone());
-                info!("List {} cached, skipping", tag.to_string());
+                info!("Unchanged: {}", tag.to_string());
                 continue;
             }
 
-            info!("{}", tag.to_string());
+            // QUESTION: is there a better data structure to enable concurrent access?
+            let mut tree_set: BTreeSet<String> = BTreeSet::new();
+            let mut out_path = categorize_path.clone();
+            out_path.push(&tag);
+            let f = File::create(out_path).with_context(|| "could not create out file")?;
+            let mut buf_writer = BufWriter::new(f);
+
+            info!("Updated: {}", tag.to_string());
 
             // read lines from the included list and insert them into a tree set to remove duplicates
             for incl in include_lists {
