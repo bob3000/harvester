@@ -39,7 +39,7 @@ impl FilterController<StageDownload, UrlInput, File> {
     /// Runs the data processing function with UrlInput as input source and a
     /// file as output destination. Returns the controller for the extract stage
     pub async fn run(&mut self) -> anyhow::Result<FilterController<StageExtract, FileInput, File>> {
-        let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        let mut raw_path = PathBuf::from_str(&self.config.cache_dir)?;
         raw_path.push(RAW_PATH);
 
         self.prepare_download(raw_path.clone()).await?;

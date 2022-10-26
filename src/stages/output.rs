@@ -18,9 +18,9 @@ use crate::{
 impl FilterController<StageOutput, FileInput, File> {
     /// Runs the output stage
     pub async fn run(&mut self) -> anyhow::Result<()> {
-        let mut categorize_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
         categorize_path.push(CATEGORIZE_PATH);
-        let out_path = PathBuf::from_str(&self.config.out_dir)?;
+        let out_path = PathBuf::from_str(&self.config.output_dir)?;
 
         self.prepare_output(categorize_path.clone(), out_path)?;
         self.output().await?;
@@ -100,7 +100,7 @@ impl FilterController<StageOutput, FileInput, File> {
             let writer = Arc::clone(&list.writer.take().unwrap());
             let output_adapter =
                 self.config
-                    .out_format
+                    .output_format
                     .get_adapter(reader, writer, self.is_processing.clone());
             let handle = tokio::spawn(async move {
                 output_adapter.await;

@@ -44,9 +44,9 @@ impl FilterController<StageExtract, FileInput, File> {
     pub async fn run(
         &mut self,
     ) -> anyhow::Result<FilterController<StageCategorize, FileInput, File>> {
-        let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        let mut raw_path = PathBuf::from_str(&self.config.cache_dir)?;
         raw_path.push(RAW_PATH);
-        let mut trans_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        let mut trans_path = PathBuf::from_str(&self.config.cache_dir)?;
         trans_path.push(TRANSFORM_PATH);
 
         self.prepare_extract(raw_path.clone(), trans_path.clone())
