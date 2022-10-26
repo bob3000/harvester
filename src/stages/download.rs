@@ -24,8 +24,8 @@ use crate::{
 
 /// This implementation for UrlInput and File is the first phase where the lists
 /// are downloaded.
-impl FilterController<StageDownload, UrlInput, File> {
-    pub fn new(config: Config, is_processing: Arc<AtomicBool>) -> Self {
+impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
+    pub fn new(config: &'config Config, is_processing: Arc<AtomicBool>) -> Self {
         Self {
             stage: PhantomData,
             config,
@@ -47,7 +47,7 @@ impl FilterController<StageDownload, UrlInput, File> {
         let extract_controller = FilterController::<StageExtract, FileInput, File> {
             stage: PhantomData,
             cached_lists: self.cached_lists.take(),
-            config: self.config.clone(),
+            config: self.config,
             filter_lists: vec![],
             category_lists: vec![],
             is_processing: self.is_processing.clone(),

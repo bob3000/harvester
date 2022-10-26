@@ -72,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // the lists are going through a process of four stages
-    let mut download_controller = FilterController::new(config, is_processing.clone());
+    let mut download_controller = FilterController::new(&config, is_processing.clone());
 
     // start the processing chain by downloading the filter lists
     info!("{}", "Downalading lists ...".yellow());
@@ -119,5 +119,6 @@ async fn main() -> anyhow::Result<()> {
             exit(1);
         }
     };
+
     Ok(())
 }

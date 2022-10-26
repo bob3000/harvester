@@ -42,9 +42,9 @@ pub struct StageOutput;
 
 /// The FilterController stores the in formation needed to run the data processing
 #[derive(Debug)]
-pub struct FilterController<Stage, R: Input + Send, W: Write + Send> {
+pub struct FilterController<'config, Stage, R: Input + Send, W: Write + Send> {
     pub stage: PhantomData<Stage>,
-    pub config: Config,
+    pub config: &'config Config,
     pub cached_lists: Option<HashSet<String>>,
     pub filter_lists: Vec<FilterListIO<R, W>>,
     pub category_lists: Vec<CategoryListIO<R, W>>,
