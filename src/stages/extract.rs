@@ -39,7 +39,7 @@ async fn regex_match(
 
 /// This implementation for FileInput and File is the second stage where URLs are
 /// being extracted
-impl FilterController<StageExtract, FileInput, File> {
+impl<'config> FilterController<'config, StageExtract, FileInput, File> {
     /// Runs the extract stage and returns the controller for the categorize stage
     pub async fn run(
         &mut self,
@@ -54,7 +54,7 @@ impl FilterController<StageExtract, FileInput, File> {
         self.extract().await?;
         let categorize_controller = FilterController::<StageCategorize, FileInput, File> {
             stage: PhantomData,
-            config: self.config.clone(),
+            config: self.config,
             cached_lists: self.cached_lists.take(),
             filter_lists: vec![],
             category_lists: vec![],

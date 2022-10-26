@@ -23,7 +23,7 @@ use crate::{
 
 /// This stage assembles the category lists from the data extracted in the previous stage
 /// A category corresponds to a tag on a list.
-impl FilterController<StageCategorize, FileInput, File> {
+impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
     /// runs the categorize stage and return controller for the output stage
     pub async fn run(&mut self) -> anyhow::Result<FilterController<StageOutput, FileInput, File>> {
         let mut extract_path = PathBuf::from_str(&self.config.cache_dir)?;
@@ -35,7 +35,7 @@ impl FilterController<StageCategorize, FileInput, File> {
         self.categorize(categorize_path).await?;
         let output_controller = FilterController::<StageOutput, FileInput, File> {
             stage: PhantomData,
-            config: self.config.clone(),
+            config: self.config,
             cached_lists: self.cached_lists.take(),
             filter_lists: vec![],
             category_lists: vec![],

@@ -15,7 +15,7 @@ use crate::{
     io::category_list_io::CategoryListIO,
 };
 
-impl FilterController<StageOutput, FileInput, File> {
+impl<'config> FilterController<'config, StageOutput, FileInput, File> {
     /// Runs the output stage
     pub async fn run(&mut self) -> anyhow::Result<()> {
         let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
