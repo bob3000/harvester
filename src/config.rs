@@ -10,9 +10,9 @@ use crate::{filter_list::FilterList, output::OutputType};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Config {
     pub lists: Vec<FilterList>,
-    pub tmp_dir: String,
-    pub out_dir: String,
-    pub out_format: OutputType,
+    pub cache_dir: String,
+    pub output_dir: String,
+    pub output_format: OutputType,
 }
 
 impl Config {
@@ -24,15 +24,15 @@ impl Config {
         let config: Config = serde_json::from_str(&contents).with_context(|| "invalid json")?;
         let Self {
             lists,
-            tmp_dir,
-            out_dir,
-            out_format,
+            cache_dir: tmp_dir,
+            output_dir: out_dir,
+            output_format: out_format,
         } = config;
         Ok(Self {
             lists,
-            tmp_dir,
-            out_dir,
-            out_format,
+            cache_dir: tmp_dir,
+            output_dir: out_dir,
+            output_format: out_format,
         })
     }
 }

@@ -26,9 +26,9 @@ use crate::{
 impl FilterController<StageCategorize, FileInput, File> {
     /// runs the categorize stage and return controller for the output stage
     pub async fn run(&mut self) -> anyhow::Result<FilterController<StageOutput, FileInput, File>> {
-        let mut extract_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        let mut extract_path = PathBuf::from_str(&self.config.cache_dir)?;
         extract_path.push(TRANSFORM_PATH);
-        let mut categorize_path = PathBuf::from_str(&self.config.tmp_dir)?;
+        let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
         categorize_path.push(CATEGORIZE_PATH);
 
         self.prepare_categorize(extract_path.clone())?;
