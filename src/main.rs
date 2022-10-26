@@ -65,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
     // crate configuration
     let config = match Config::load(Path::new(&args.config)) {
         Err(e) => {
-            error!("{}: {}", &args.config, e);
+            error!("{}: {:?}", &args.config, e);
             exit(1);
         }
         Ok(c) => c,
