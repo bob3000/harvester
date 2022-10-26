@@ -1,7 +1,7 @@
 {
-  "tmp_dir": "./tmp",
-  "out_dir": "./out",
-  "out_format": "Hostsfile",
+  "cache_dir": "./tmp",
+  "output_dir": "./out",
+  "output_format": "Hostsfile",
   "lists": [
     {
       "id": "urlhouse",
