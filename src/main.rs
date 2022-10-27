@@ -63,7 +63,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // crate configuration
-    let config = match Config::load(Path::new(&args.config)) {
+    let mut config = match Config::load(Path::new(&args.config)) {
         Err(e) => {
             error!("{}: {:?}", &args.config, e);
             exit(1);
@@ -119,6 +119,10 @@ async fn main() -> anyhow::Result<()> {
             exit(1);
         }
     };
+
+    if let Err(e) = config.save_to_cache() {
+        error!("Error writing last config: {}", e);
+    }
 
     Ok(())
 }
