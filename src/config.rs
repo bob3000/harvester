@@ -56,7 +56,7 @@ impl Config {
         last_conf_path.push(CACHED_CONF_FILE_NAME);
         let mut last_conf = File::create(&last_conf_path)?;
         let conf_str = serde_json::to_string(&self)?;
-        last_conf.write_all(&conf_str.as_bytes())?;
+        last_conf.write_all(conf_str.as_bytes())?;
         Ok(())
     }
 
