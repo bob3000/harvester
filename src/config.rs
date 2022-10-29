@@ -59,4 +59,22 @@ impl Config {
         last_conf.write_all(&conf_str.as_bytes())?;
         Ok(())
     }
+
+    /// extracts all existing tags from the filter list configuration
+    pub fn get_tags(&self) -> Vec<String> {
+        let mut tags: Vec<String> = Vec::new();
+        for list in self.lists.iter() {
+            list.tags.iter().for_each(|t| {
+                if !tags.contains(t) {
+                    tags.push(t.clone())
+                }
+            });
+        }
+        tags
+    }
+
+    pub fn lists_with_tag(&self, tag: &String) -> Vec<&FilterList> {
+        let lists: Vec<&FilterList> = self.lists.iter().filter(|l| l.tags.contains(tag)).collect();
+        lists
+    }
 }

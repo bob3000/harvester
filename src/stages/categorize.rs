@@ -44,19 +44,6 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
         Ok(output_controller)
     }
 
-    /// extracts all existing tags from the filter list configuration
-    fn get_tags(&self) -> Vec<String> {
-        let mut tags: Vec<String> = Vec::new();
-        for list_io in self.filter_lists.iter() {
-            list_io.filter_list.tags.iter().for_each(|t| {
-                if !tags.contains(t) {
-                    tags.push(t.clone())
-                }
-            });
-        }
-        tags
-    }
-
     /// Attaches the source file reader to the FilterListIO
     ///
     /// * `extract_path`: The directory where the extracted data from the previous
@@ -86,7 +73,7 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
     async fn categorize(&mut self, categorize_path: PathBuf) -> anyhow::Result<()> {
         fs::create_dir_all(&categorize_path).with_context(|| "could not create out directory")?;
         let mut handles: Vec<JoinHandle<()>> = vec![];
-        for tag in self.get_tags() {
+        for tag in self.config.get_tags() {
             if !self.is_processing.load(Ordering::SeqCst) {
                 return Ok(());
             }
@@ -109,11 +96,17 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
                 .difference(self.cached_lists.as_ref().unwrap())
                 .collect();
 
-            // if there is no difference between cached lists and included lists there is no need for action
-            if difference.is_empty() {
-                self.cached_lists.as_mut().unwrap().insert(tag.clone());
-                info!("Unchanged: {}", tag.to_string());
-                continue;
+            // if the cached_config lists vec and the current config lists vec have the same
+            // length no list has been removed since the last run
+            if let Some(cached_config) = &self.config.cached_config
+            && self.config.lists_with_tag(&tag).len() == cached_config.lists_with_tag(&tag).len()
+            {
+                // if there is no difference between cached lists and included lists there is no need for action
+                if difference.is_empty() {
+                    self.cached_lists.as_mut().unwrap().insert(tag.clone());
+                    info!("Unchanged: {}", tag.to_string());
+                    continue;
+                }
             }
 
             // QUESTION: is there a better data structure to enable concurrent access?
