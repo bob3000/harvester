@@ -76,7 +76,7 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
 
             let mut is_cached = false;
             // we can only check for a cached result if the former downloaded file is available
-            if let Ok(_) = get_out_file(&mut list, &raw_path) {
+            if get_out_file(&mut list, &raw_path).is_ok() {
                 debug!("{}: cached file not found", list.filter_list.id);
                 is_cached = list.is_cached().await?;
             }
