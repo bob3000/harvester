@@ -1,12 +1,11 @@
 use std::{
-    fs::{self, File},
+    fs::File,
     path::PathBuf,
     str::FromStr,
     sync::{atomic::Ordering, Arc},
 };
 
-use anyhow::Context;
-use futures::{future::join_all, lock::Mutex};
+use futures::future::join_all;
 use tokio::task::JoinHandle;
 
 use crate::{
@@ -58,29 +57,18 @@ impl<'config> FilterController<'config, StageOutput, FileInput, File> {
             .iter_mut()
             .try_for_each(|list| -> anyhow::Result<()> {
                 // set readers
-                let mut contents = fs::read_dir(&categorize_path)
-                    .with_context(|| "input file directory does not exist")?;
-                let entry = contents
-                    .find(|it| {
-                        if let Ok(it) = it {
-                            return it.file_name().to_str().unwrap() == list.name;
-                        }
-                        false
-                    })
-                    .ok_or_else(|| anyhow::anyhow!("file not found: {}", list.name))??;
-                list.reader = Some(Arc::new(Mutex::new(FileInput::new(entry.path(), None))));
+                list.attach_existing_input_file(&categorize_path)?;
 
                 // set writers
-                if self.cached_lists.as_ref().unwrap().contains(&list.name) {
+                if self.cached_lists.as_ref().unwrap().contains(&list.name)
+                    && list.attach_existing_input_file(&categorize_path).is_ok()
+                    && list.attach_existing_file_writer(&output_path).is_ok()
+                {
+                    // set writer to None so it will be skipped in the output method
+                    list.writer = None;
                     return Ok(());
                 }
-                let mut out_path = output_path.clone();
-                fs::create_dir_all(&output_path)
-                    .with_context(|| "could not create out directory")?;
-                out_path.push(&list.name);
-                let out_file =
-                    File::create(out_path).with_context(|| "could not write out file")?;
-                list.writer = Some(Arc::new(Mutex::new(out_file)));
+                list.attach_new_file_writer(&output_path)?;
                 Ok(())
             })?;
         Ok(())
@@ -94,7 +82,7 @@ impl<'config> FilterController<'config, StageOutput, FileInput, File> {
                 return Ok(());
             }
             // do nothing if the list was already written on the last run
-            if self.cached_lists.as_ref().unwrap().contains(&list.name) {
+            if self.cached_lists.as_ref().unwrap().contains(&list.name) && list.writer.is_none() {
                 info!("Unchanged: {}", list.name);
                 continue;
             }
