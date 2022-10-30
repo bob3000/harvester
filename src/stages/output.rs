@@ -71,6 +71,9 @@ impl<'config> FilterController<'config, StageOutput, FileInput, File> {
                 list.reader = Some(Arc::new(Mutex::new(FileInput::new(entry.path(), None))));
 
                 // set writers
+                if self.cached_lists.as_ref().unwrap().contains(&list.name) {
+                    return Ok(());
+                }
                 let mut out_path = output_path.clone();
                 fs::create_dir_all(&output_path)
                     .with_context(|| "could not create out directory")?;
