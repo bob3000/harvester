@@ -14,10 +14,7 @@ use futures::future::join_all;
 
 use crate::{
     config::Config,
-    filter_controller::{
-        create_input_urls, create_out_file, get_out_file, process, FilterController, StageDownload,
-        StageExtract, RAW_PATH,
-    },
+    filter_controller::{process, FilterController, StageDownload, StageExtract, RAW_PATH},
     input::{file::FileInput, url::UrlInput},
     io::filter_list_io::FilterListIO,
 };
@@ -72,16 +69,16 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
                 return Ok(());
             }
 
-            create_input_urls(&mut list)?;
+            list.attach_url_reader()?;
 
             let mut is_cached = false;
             // we can only check for a cached result if the former downloaded file is available
-            if get_out_file(&mut list, &raw_path).is_ok() {
+            if list.attach_existing_file_writer(&raw_path).is_ok() {
                 is_cached = list.is_cached().await?;
             }
             if !is_cached {
                 info!("Updated: {}", list.filter_list.id);
-                create_out_file(&mut list, &raw_path)?;
+                list.attach_new_file_writer(&raw_path)?;
                 self.filter_lists.push(list);
             } else {
                 info!("Unchanged: {}", list.filter_list.id);

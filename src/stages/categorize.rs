@@ -14,8 +14,7 @@ use tokio::task::JoinHandle;
 
 use crate::{
     filter_controller::{
-        get_input_file, FilterController, StageCategorize, StageOutput, CATEGORIZE_PATH,
-        TRANSFORM_PATH,
+        FilterController, StageCategorize, StageOutput, CATEGORIZE_PATH, TRANSFORM_PATH,
     },
     input::{file::FileInput, Input},
     io::filter_list_io::FilterListIO,
@@ -59,7 +58,7 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
         self.filter_lists
             .iter_mut()
             .try_for_each(|l| -> anyhow::Result<()> {
-                get_input_file(l, &extract_path, None)?;
+                l.attach_existing_input_file(&extract_path, None)?;
                 l.writer = None;
                 Ok(())
             })?;
@@ -140,6 +139,12 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
                     tree_set.insert(str_chunk);
                 }
             }
+
+            // do some sanitizing - empty lines ain't domains
+            tree_set.remove("\n");
+            tree_set.remove("");
+            tree_set.remove(" ");
+            tree_set.remove("\t");
 
             let handle = tokio::spawn(async move {
                 for line in tree_set {
