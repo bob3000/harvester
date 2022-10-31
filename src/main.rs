@@ -121,7 +121,10 @@ async fn main() -> anyhow::Result<()> {
     };
 
     if let Err(e) = config.save_to_cache() {
-        error!("Error writing last config: {}", e);
+        error!(
+            "Error writing last configuration file to cache directory: {}",
+            e
+        );
     }
 
     Ok(())
