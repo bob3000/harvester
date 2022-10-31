@@ -14,7 +14,7 @@ use tokio::task::JoinHandle;
 
 use crate::{
     filter_controller::{
-        FilterController, StageCategorize, StageOutput, CATEGORIZE_PATH, TRANSFORM_PATH,
+        FilterController, StageCategorize, StageOutput, CATEGORIZE_PATH, EXTRACT_PATH,
     },
     input::{file::FileInput, Input},
     io::filter_list_io::FilterListIO,
@@ -26,7 +26,7 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
     /// runs the categorize stage and return controller for the output stage
     pub async fn run(&mut self) -> anyhow::Result<FilterController<StageOutput, FileInput, File>> {
         let mut extract_path = PathBuf::from_str(&self.config.cache_dir)?;
-        extract_path.push(TRANSFORM_PATH);
+        extract_path.push(EXTRACT_PATH);
         let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
         categorize_path.push(CATEGORIZE_PATH);
 
@@ -140,6 +140,7 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
                 }
             }
 
+            // TODO: write test. It that actually helpful?
             // do some sanitizing - empty lines ain't domains
             tree_set.remove("\n");
             tree_set.remove("");

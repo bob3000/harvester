@@ -5,7 +5,7 @@ use regex::Regex;
 
 use crate::{
     filter_controller::{
-        process, FilterController, StageCategorize, StageExtract, RAW_PATH, TRANSFORM_PATH,
+        process, FilterController, StageCategorize, StageExtract, DOWNLOAD_PATH, EXTRACT_PATH,
     },
     filter_list::FilterList,
     input::file::FileInput,
@@ -44,9 +44,9 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
         &mut self,
     ) -> anyhow::Result<FilterController<StageCategorize, FileInput, File>> {
         let mut raw_path = PathBuf::from_str(&self.config.cache_dir)?;
-        raw_path.push(RAW_PATH);
+        raw_path.push(DOWNLOAD_PATH);
         let mut trans_path = PathBuf::from_str(&self.config.cache_dir)?;
-        trans_path.push(TRANSFORM_PATH);
+        trans_path.push(EXTRACT_PATH);
 
         self.prepare_extract(raw_path.clone(), trans_path.clone())
             .await?;
@@ -84,7 +84,10 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
                 .as_ref()
                 .unwrap()
                 .contains(&list.filter_list.id)
+                && list.attach_existing_input_file(&raw_path, None).is_ok()
+                && list.attach_existing_file_writer(&extract_path).is_ok()
             {
+                list.writer = None;
                 info!("Unchanged: {}", list.filter_list.id);
             } else {
                 info!("Updated: {}", list.filter_list.id);

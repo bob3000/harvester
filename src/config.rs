@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{filter_list::FilterList, output::OutputType};
 
-pub const CACHED_CONF_FILE_NAME: &str = "last_conf.json";
+pub const CACHED_CONF_FILE_NAME: &str = "last_config.json";
 
 /// Config contains all relevant information to start the data processing.
 /// Relevant information is considered most of all data sources and destinations
@@ -73,6 +73,9 @@ impl Config {
         tags
     }
 
+    /// returns a Vec containing list that have the given tag attached
+    ///
+    /// * `tag`: filter lists by this tag
     pub fn lists_with_tag(&self, tag: &String) -> Vec<&FilterList> {
         let lists: Vec<&FilterList> = self.lists.iter().filter(|l| l.tags.contains(tag)).collect();
         lists
