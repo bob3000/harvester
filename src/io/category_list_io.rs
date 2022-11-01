@@ -10,11 +10,14 @@ use futures::lock::Mutex;
 
 use crate::input::{file::FileInput, Input};
 
+use super::filter_list_io::FilterListIO;
+
 /// CategoryListIO contains a reader and a writer used to manipulate category wise
 /// assembled filter lists
 #[derive(Debug)]
 pub struct CategoryListIO<R: Input + Send, W: Write + Send> {
     pub name: String,
+    pub included_filter_lists: Vec<FilterListIO<R, W>>,
     pub reader: Option<Arc<Mutex<R>>>,
     pub writer: Option<Arc<Mutex<W>>>,
 }
@@ -26,6 +29,7 @@ impl<R: Input + Send, W: Write + Send> CategoryListIO<R, W> {
     pub fn new(name: &str) -> Self {
         Self {
             name: name.to_string(),
+            included_filter_lists: vec![],
             reader: None,
             writer: None,
         }
