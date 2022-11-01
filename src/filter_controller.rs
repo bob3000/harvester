@@ -17,9 +17,9 @@ use crate::{
 };
 
 /// Sub path for downloaded raw lists
-pub const DOWNLOAD_PATH: &str = "raw";
+pub const DOWNLOAD_PATH: &str = "download";
 /// Sub path for extracted lists
-pub const EXTRACT_PATH: &str = "transform";
+pub const EXTRACT_PATH: &str = "extract";
 /// Sub path for the assembled categorized lists
 pub const CATEGORIZE_PATH: &str = "categorize";
 
