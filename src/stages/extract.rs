@@ -90,6 +90,10 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
                 list.writer = None;
                 info!("Unchanged: {}", list.filter_list.id);
             } else {
+                self.cached_lists
+                    .as_mut()
+                    .unwrap()
+                    .retain(|l| l != &list.filter_list.id);
                 info!("Updated: {}", list.filter_list.id);
                 let compression = list.filter_list.compression.clone();
                 list.attach_existing_input_file(&raw_path, compression)?;
