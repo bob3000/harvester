@@ -1,9 +1,9 @@
 use std::{
     collections::{BTreeSet, HashSet},
     fs::{self, File},
-    io::{BufWriter, Write},
+    io::Write,
     marker::PhantomData,
-    path::PathBuf,
+    path::{Path, PathBuf},
     str::FromStr,
     sync::atomic::Ordering,
 };
@@ -17,7 +17,7 @@ use crate::{
         FilterController, StageCategorize, StageOutput, CATEGORIZE_PATH, EXTRACT_PATH,
     },
     input::{file::FileInput, Input},
-    io::filter_list_io::FilterListIO,
+    io::{category_list_io::CategoryListIO, filter_list_io::FilterListIO},
 };
 
 /// This stage assembles the category lists from the data extracted in the previous stage
@@ -30,7 +30,7 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
         let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
         categorize_path.push(CATEGORIZE_PATH);
 
-        self.prepare_categorize(extract_path.clone())?;
+        self.prepare_categorize(&extract_path, &categorize_path)?;
         self.categorize(categorize_path).await?;
         let output_controller = FilterController::<StageOutput, FileInput, File> {
             stage: PhantomData,
@@ -47,19 +47,58 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
     ///
     /// * `extract_path`: The directory where the extracted data from the previous
     ///                   step was stored
-    fn prepare_categorize(&mut self, extract_path: PathBuf) -> anyhow::Result<()> {
-        // repopulate filterlists from config file to include all once more
-        self.filter_lists = self
-            .config
-            .lists
+    fn prepare_categorize(
+        &mut self,
+        extract_path: &Path,
+        categorize_path: &Path,
+    ) -> anyhow::Result<()> {
+        // prepare category lists for writing
+        self.config
+            .get_tags()
             .iter()
-            .map(|f| FilterListIO::new(f.clone()))
-            .collect();
-        self.filter_lists
-            .iter_mut()
-            .try_for_each(|l| -> anyhow::Result<()> {
-                l.attach_existing_input_file(&extract_path, None)?;
-                l.writer = None;
+            .try_for_each(|tag| -> anyhow::Result<()> {
+                let mut category_list = CategoryListIO::new(tag);
+                let included_lists = self.config.lists_with_tag(tag);
+
+                // include all ids into the category which have the currently processed tag attached
+                let include_ids: HashSet<String> = self
+                    .config
+                    .lists_with_tag(tag)
+                    .iter()
+                    .map(|list| list.id.clone())
+                    .collect();
+
+               // calculate the difference between included lists an cached lists
+                let difference: HashSet<&String> = include_ids
+                    .difference(self.cached_lists.as_ref().unwrap())
+                    .collect();
+
+                // if the cached_config lists vec and the current config lists vec have the same
+                // length no list has been removed since the last run
+                if let Some(cached_config) = &self.config.cached_config
+                    && self.config.lists_with_tag(tag).len() == cached_config.lists_with_tag(tag).len()
+                    // if there is no difference between cached lists and included lists there is no need for action
+                    && difference.is_empty()
+                    // check if there was actually a file written on the last run
+                    && category_list.attach_existing_file_writer(categorize_path).is_ok()
+                {
+                    self.cached_lists.as_mut().unwrap().insert(tag.clone());
+                    category_list.writer = None;
+                    info!("Unchanged: {}", tag.to_string());
+                    return Ok(());
+                }
+
+                category_list.attach_new_file_writer(categorize_path)?;
+                category_list.included_filter_lists = included_lists.into_iter().filter_map(|flist| {
+                    let mut flist_io = FilterListIO::new(flist.to_owned());
+                    if let Err(e) = flist_io.attach_existing_input_file(extract_path, None) {
+                        error!("Error: {} - {}", flist_io.filter_list.id, e);
+                        return None;
+                    }
+                    Some(flist_io)
+                }).collect();
+
+                self.category_lists.push(category_list);
                 Ok(())
             })?;
         Ok(())
@@ -72,62 +111,27 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
     async fn categorize(&mut self, categorize_path: PathBuf) -> anyhow::Result<()> {
         fs::create_dir_all(&categorize_path).with_context(|| "could not create out directory")?;
         let mut handles: Vec<JoinHandle<()>> = vec![];
-        for tag in self.config.get_tags() {
+        for category_list in self.category_lists.iter_mut() {
             if !self.is_processing.load(Ordering::SeqCst) {
                 return Ok(());
             }
 
-            // include all list into the category which have the currently processed tag attached
-            let include_lists: Vec<&mut FilterListIO<FileInput, File>> = self
-                .filter_lists
-                .iter_mut()
-                .filter(|l| l.filter_list.tags.contains(&tag))
-                .collect();
-
-            // get the list ids of all included lists
-            let include_ids: HashSet<String> = include_lists
-                .iter()
-                .map(|list| list.filter_list.id.clone())
-                .collect();
-
-            // calculate the difference between included lists an cached lists
-            let difference: HashSet<&String> = include_ids
-                .difference(self.cached_lists.as_ref().unwrap())
-                .collect();
-
-            // if the cached_config lists vec and the current config lists vec have the same
-            // length no list has been removed since the last run
-            if let Some(cached_config) = &self.config.cached_config
-            && self.config.lists_with_tag(&tag).len() == cached_config.lists_with_tag(&tag).len()
-            {
-                // if there is no difference between cached lists and included lists there is no need for action
-                if difference.is_empty() {
-                    self.cached_lists.as_mut().unwrap().insert(tag.clone());
-                    info!("Unchanged: {}", tag.to_string());
-                    continue;
-                }
-            }
-
             // QUESTION: is there a better data structure to enable concurrent access?
             let mut tree_set: BTreeSet<String> = BTreeSet::new();
-            let mut out_path = categorize_path.clone();
-            out_path.push(&tag);
-            let f = File::create(out_path).with_context(|| "could not create out file")?;
-            let mut buf_writer = BufWriter::new(f);
 
-            info!("Updated: {}", tag.to_string());
+            info!("Updated: {}", category_list.name);
 
             // read lines from the included list and insert them into a tree set to remove duplicates
-            for incl in include_lists {
-                let reader = match incl.reader.as_mut() {
-                    Some(r) => r,
-                    None => {
-                        debug!("reader is None: {}", incl.filter_list.id);
-                        continue;
-                    }
-                };
-                reader.lock().await.reset().await?;
-                while let Ok(Some(chunk)) = reader.lock().await.chunk().await {
+            for filter_list in category_list.included_filter_lists.iter_mut() {
+                while let Ok(Some(chunk)) = filter_list
+                    .reader
+                    .as_mut()
+                    .unwrap()
+                    .lock()
+                    .await
+                    .chunk()
+                    .await
+                {
                     // insert the URLs into a BTreeSet to deduplicate and sort the data
                     let str_chunk = match String::from_utf8(chunk) {
                         Ok(s) => s,
@@ -147,9 +151,10 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
             tree_set.remove(" ");
             tree_set.remove("\t");
 
+            let writer = category_list.writer.take().unwrap();
             let handle = tokio::spawn(async move {
                 for line in tree_set {
-                    if let Err(e) = buf_writer.write_all(line.as_bytes()) {
+                    if let Err(e) = writer.lock().await.write_all(line.as_bytes()) {
                         error!("{:?}", e);
                         break;
                     }
