@@ -16,13 +16,6 @@ use crate::{
     io::filter_list_io::FilterListIO,
 };
 
-/// Sub path for downloaded raw lists
-pub const DOWNLOAD_PATH: &str = "download";
-/// Sub path for extracted lists
-pub const EXTRACT_PATH: &str = "extract";
-/// Sub path for the assembled categorized lists
-pub const CATEGORIZE_PATH: &str = "categorize";
-
 /// These structs represent the stages of a program run
 pub struct StageDownload;
 pub struct StageExtract;

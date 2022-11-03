@@ -9,16 +9,16 @@ use futures::future::join_all;
 use tokio::task::JoinHandle;
 
 use crate::{
-    filter_controller::{FilterController, StageOutput, CATEGORIZE_PATH},
+    filter_controller::{FilterController, StageOutput},
     input::file::FileInput,
     io::category_list_io::CategoryListIO,
 };
 
 impl<'config> FilterController<'config, StageOutput, FileInput, File> {
     /// Runs the output stage
-    pub async fn run(&mut self) -> anyhow::Result<()> {
+    pub async fn run(&mut self, categorize_base_path: &str) -> anyhow::Result<()> {
         let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
-        categorize_path.push(CATEGORIZE_PATH);
+        categorize_path.push(categorize_base_path);
         let out_path = PathBuf::from_str(&self.config.output_dir)?;
 
         self.prepare_output(categorize_path.clone(), out_path)?;

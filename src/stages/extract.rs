@@ -4,9 +4,7 @@ use futures::future::join_all;
 use regex::Regex;
 
 use crate::{
-    filter_controller::{
-        process, FilterController, StageCategorize, StageExtract, DOWNLOAD_PATH, EXTRACT_PATH,
-    },
+    filter_controller::{process, FilterController, StageCategorize, StageExtract},
     filter_list::FilterList,
     input::file::FileInput,
     io::filter_list_io::FilterListIO,
@@ -42,13 +40,15 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
     /// Runs the extract stage and returns the controller for the categorize stage
     pub async fn run(
         &mut self,
+        download_base_path: &str,
+        extract_base_path: &str,
     ) -> anyhow::Result<FilterController<StageCategorize, FileInput, File>> {
-        let mut raw_path = PathBuf::from_str(&self.config.cache_dir)?;
-        raw_path.push(DOWNLOAD_PATH);
-        let mut trans_path = PathBuf::from_str(&self.config.cache_dir)?;
-        trans_path.push(EXTRACT_PATH);
+        let mut download_path = PathBuf::from_str(&self.config.cache_dir)?;
+        download_path.push(download_base_path);
+        let mut extract_path = PathBuf::from_str(&self.config.cache_dir)?;
+        extract_path.push(extract_base_path);
 
-        self.prepare_extract(raw_path.clone(), trans_path.clone())
+        self.prepare_extract(download_path.clone(), extract_path.clone())
             .await?;
         self.extract().await?;
         let categorize_controller = FilterController::<StageCategorize, FileInput, File> {
