@@ -13,9 +13,7 @@ use futures::future::join_all;
 use tokio::task::JoinHandle;
 
 use crate::{
-    filter_controller::{
-        FilterController, StageCategorize, StageOutput, CATEGORIZE_PATH, EXTRACT_PATH,
-    },
+    filter_controller::{FilterController, StageCategorize, StageOutput},
     input::{file::FileInput, Input},
     io::{category_list_io::CategoryListIO, filter_list_io::FilterListIO},
 };
@@ -24,11 +22,15 @@ use crate::{
 /// A category corresponds to a tag on a list.
 impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
     /// runs the categorize stage and return controller for the output stage
-    pub async fn run(&mut self) -> anyhow::Result<FilterController<StageOutput, FileInput, File>> {
+    pub async fn run(
+        &mut self,
+        extract_base_path: &str,
+        categorize_base_path: &str,
+    ) -> anyhow::Result<FilterController<StageOutput, FileInput, File>> {
         let mut extract_path = PathBuf::from_str(&self.config.cache_dir)?;
-        extract_path.push(EXTRACT_PATH);
+        extract_path.push(extract_base_path);
         let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
-        categorize_path.push(CATEGORIZE_PATH);
+        categorize_path.push(categorize_base_path);
 
         self.prepare_categorize(&extract_path, &categorize_path)?;
         self.categorize(categorize_path).await?;

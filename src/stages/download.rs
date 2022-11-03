@@ -14,7 +14,7 @@ use futures::future::join_all;
 
 use crate::{
     config::Config,
-    filter_controller::{process, FilterController, StageDownload, StageExtract, DOWNLOAD_PATH},
+    filter_controller::{process, FilterController, StageDownload, StageExtract},
     input::{file::FileInput, url::UrlInput},
     io::filter_list_io::FilterListIO,
 };
@@ -35,11 +35,14 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
 
     /// Runs the data processing function with UrlInput as input source and a
     /// file as output destination. Returns the controller for the extract stage
-    pub async fn run(&mut self) -> anyhow::Result<FilterController<StageExtract, FileInput, File>> {
-        let mut raw_path = PathBuf::from_str(&self.config.cache_dir)?;
-        raw_path.push(DOWNLOAD_PATH);
+    pub async fn run(
+        &mut self,
+        download_base_path: &str,
+    ) -> anyhow::Result<FilterController<StageExtract, FileInput, File>> {
+        let mut download_path = PathBuf::from_str(&self.config.cache_dir)?;
+        download_path.push(download_base_path);
 
-        self.prepare_download(raw_path.clone()).await?;
+        self.prepare_download(download_path.clone()).await?;
         self.download().await?;
         let extract_controller = FilterController::<StageExtract, FileInput, File> {
             stage: PhantomData,
