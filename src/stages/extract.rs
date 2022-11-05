@@ -68,7 +68,7 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
     /// * `extract_path`: the file system path to where the extracted URLs are written to
     async fn prepare_extract(
         &mut self,
-        raw_path: PathBuf,
+        download_path: PathBuf,
         extract_path: PathBuf,
     ) -> anyhow::Result<()> {
         let configured_lists: Vec<FilterListIO<FileInput, File>> = self
@@ -84,7 +84,9 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
                 .as_ref()
                 .unwrap()
                 .contains(&list.filter_list.id)
-                && list.attach_existing_input_file(&raw_path, None).is_ok()
+                && list
+                    .attach_existing_input_file(&download_path, None)
+                    .is_ok()
                 && list.attach_existing_file_writer(&extract_path).is_ok()
             {
                 list.writer = None;
@@ -96,7 +98,7 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
                     .retain(|l| l != &list.filter_list.id);
                 info!("Updated: {}", list.filter_list.id);
                 let compression = list.filter_list.compression.clone();
-                list.attach_existing_input_file(&raw_path, compression)?;
+                list.attach_existing_input_file(&download_path, compression)?;
                 list.attach_new_file_writer(&extract_path)?;
                 self.filter_lists.push(list);
             }
@@ -119,7 +121,49 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashSet, sync::atomic::AtomicBool};
+
+    use crate::tests::helper::cache_file_creator::CacheFileCreator;
+
     use super::*;
+
+    #[tokio::test]
+    async fn test_extract_successful() {
+        let cache = CacheFileCreator::new("download", "extract");
+        let mut config = cache.new_test_config();
+        config.lists = vec![FilterList {
+            id: "test".to_string(),
+            comment: None,
+            compression: None,
+            source: "".to_string(),
+            tags: vec![],
+            regex: r"127.0.0.1 (.*)".to_string(),
+        }];
+        cache.write_input(
+            &config.lists[0].id,
+            r#"
+127.0.0.1 one.domain
+127.0.0.1 another.domain
+"#,
+        );
+
+        let mut extract_controller = FilterController::<StageExtract, FileInput, File> {
+            stage: PhantomData,
+            cached_lists: Some(HashSet::new()),
+            config: &config,
+            filter_lists: vec![],
+            category_lists: vec![],
+            is_processing: Arc::new(AtomicBool::new(true)),
+        };
+        if let Err(e) = extract_controller.run(&cache.inpath, &cache.outpath).await {
+            error!("{}", e);
+        }
+        let want = r#"one.domain
+another.domain
+"#;
+        let got = cache.read_result(&config.lists[0].id).unwrap();
+        assert_eq!(want, got);
+    }
 
     #[tokio::test]
     async fn test_regex_match_positive() {

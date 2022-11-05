@@ -4,3 +4,5 @@
 *.gz
 /out
 /tmp
+/test_cache
+/test_out
