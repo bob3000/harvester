@@ -146,16 +146,12 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
                 }
             }
 
-            // TODO: write test. It that actually helpful?
-            // do some sanitizing - empty lines ain't domains
-            tree_set.remove("\n");
-            tree_set.remove("");
-            tree_set.remove(" ");
-            tree_set.remove("\t");
-
             let writer = category_list.writer.take().unwrap();
             let handle = tokio::spawn(async move {
-                for line in tree_set {
+                for mut line in tree_set {
+                    if !line.ends_with("\n") {
+                        line.push('\n');
+                    }
                     if let Err(e) = writer.lock().await.write_all(line.as_bytes()) {
                         error!("{:?}", e);
                         break;
@@ -166,5 +162,104 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
         }
         join_all(handles).await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::{
+        collections::HashMap,
+        sync::{atomic::AtomicBool, Arc},
+    };
+
+    use crate::{
+        filter_list::FilterList, tests::helper::cache_file_creator::CacheFileCreator,
+        CATEGORIZE_PATH, EXTRACT_PATH,
+    };
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_categorize_successful() {
+        // prepare folder structure
+        let cache = CacheFileCreator::new(EXTRACT_PATH, CATEGORIZE_PATH);
+        let mut config = cache.new_test_config();
+        // three lists tagged with: advertising, malware and advertising + malware
+        config.lists = vec![
+            FilterList {
+                id: "advertising".to_string(),
+                comment: None,
+                compression: None,
+                source: "".to_string(),
+                tags: vec!["advertising".to_string()],
+                regex: r"(.*)".to_string(),
+            },
+            FilterList {
+                id: "malware".to_string(),
+                comment: None,
+                compression: None,
+                source: "".to_string(),
+                tags: vec!["malware".to_string()],
+                regex: r"(.*)".to_string(),
+            },
+            FilterList {
+                id: "advertising_malware".to_string(),
+                comment: None,
+                compression: None,
+                source: "".to_string(),
+                tags: vec!["malware".to_string(), "advertising".to_string()],
+                regex: r"(.*)".to_string(),
+            },
+        ];
+        // the contents of each filter list
+        let contents = vec![
+            vec!["one.domain", "another.domain"].join("\n"),
+            vec!["third.domain", "fourth.domain"].join("\n"),
+            vec!["fith.domain", "sixth.domain"].join("\n"),
+        ];
+        for i in 0..=2 {
+            cache.write_input(&config.lists[i].id, &contents[i]);
+        }
+
+        let mut categorize_controller = FilterController::<StageCategorize, FileInput, File> {
+            stage: PhantomData,
+            cached_lists: Some(HashSet::new()),
+            config: &config,
+            filter_lists: vec![],
+            category_lists: vec![],
+            is_processing: Arc::new(AtomicBool::new(true)),
+        };
+        if let Err(e) = categorize_controller
+            .run(&cache.inpath, &cache.outpath)
+            .await
+        {
+            error!("{}", e);
+        }
+
+        // the advertising list is expected to have the contents from list 0 and 2
+        let mut advertising = vec![
+            contents[0].split("\n").collect::<Vec<&str>>(),
+            contents[2].split("\n").collect::<Vec<&str>>(),
+        ]
+        .concat();
+        // the malware list is expected to have the contents from list 1 and 2
+        let mut malware = vec![
+            contents[1].split("\n").collect::<Vec<&str>>(),
+            contents[2].split("\n").collect::<Vec<&str>>(),
+        ]
+        .concat();
+        advertising.sort();
+        malware.sort();
+        let want = HashMap::from([
+            ("advertising", advertising.join("\n") + "\n"),
+            ("malware", malware.join("\n") + "\n"),
+        ]);
+        // read from files written and compare results for each category list
+        for category in vec!["advertising", "malware"] {
+            let got = cache.read_result(&category).unwrap();
+            let want = want.get(&category).unwrap();
+            assert_eq!(want, &got);
+        }
     }
 }
