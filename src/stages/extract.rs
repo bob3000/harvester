@@ -123,13 +123,13 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
 mod tests {
     use std::{collections::HashSet, sync::atomic::AtomicBool};
 
-    use crate::tests::helper::cache_file_creator::CacheFileCreator;
+    use crate::{tests::helper::cache_file_creator::CacheFileCreator, DOWNLOAD_PATH, EXTRACT_PATH};
 
     use super::*;
 
     #[tokio::test]
     async fn test_extract_successful() {
-        let cache = CacheFileCreator::new("download", "extract");
+        let cache = CacheFileCreator::new(DOWNLOAD_PATH, EXTRACT_PATH);
         let mut config = cache.new_test_config();
         config.lists = vec![FilterList {
             id: "test".to_string(),
@@ -137,8 +137,10 @@ mod tests {
             compression: None,
             source: "".to_string(),
             tags: vec![],
+            // the regex for matching lines
             regex: r"127.0.0.1 (.*)".to_string(),
         }];
+        // prepare the file to extract from
         cache.write_input(
             &config.lists[0].id,
             r#"
@@ -158,6 +160,7 @@ mod tests {
         if let Err(e) = extract_controller.run(&cache.inpath, &cache.outpath).await {
             error!("{}", e);
         }
+        // we expect the result file only to contain the domains according to the regex
         let want = r#"one.domain
 another.domain
 "#;
