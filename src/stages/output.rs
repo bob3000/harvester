@@ -110,7 +110,7 @@ mod tests {
     #[tokio::test]
     async fn test_output_successful() {
         // prepare folder structure
-        let cache = CacheFileCreator::new(CATEGORIZE_PATH, "output");
+        let cache = CacheFileCreator::new("test_output_successful", CATEGORIZE_PATH, "output");
         let mut config = cache.new_test_config();
         // for output to work we need these FilterLists for the tags to be present in the config
         config.lists = vec![

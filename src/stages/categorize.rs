@@ -186,7 +186,8 @@ mod tests {
     #[tokio::test]
     async fn test_categorize_successful() {
         // prepare folder structure
-        let cache = CacheFileCreator::new(EXTRACT_PATH, CATEGORIZE_PATH);
+        let cache =
+            CacheFileCreator::new("test_categorize_successful", EXTRACT_PATH, CATEGORIZE_PATH);
         let mut config = cache.new_test_config();
         // three lists tagged with: advertising, malware and advertising + malware
         config.lists = vec![
