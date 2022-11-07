@@ -136,12 +136,15 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
                 {
                     // insert the URLs into a BTreeSet to deduplicate and sort the data
                     let str_chunk = match String::from_utf8(chunk) {
-                        Ok(s) => s,
+                        Ok(s) => s.trim().to_string(),
                         Err(e) => {
                             anyhow::anyhow!("{}", e);
                             continue;
                         }
                     };
+                    if str_chunk.is_empty() {
+                        continue;
+                    }
                     tree_set.insert(str_chunk);
                 }
             }
@@ -149,7 +152,7 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
             let writer = category_list.writer.take().unwrap();
             let handle = tokio::spawn(async move {
                 for mut line in tree_set {
-                    if !line.ends_with("\n") {
+                    if !line.ends_with('\n') {
                         line.push('\n');
                     }
                     if let Err(e) = writer.lock().await.write_all(line.as_bytes()) {
