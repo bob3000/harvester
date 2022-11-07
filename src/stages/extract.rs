@@ -129,7 +129,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_extract_successful() {
-        let cache = CacheFileCreator::new(DOWNLOAD_PATH, EXTRACT_PATH);
+        let cache = CacheFileCreator::new("test_extract_successful", DOWNLOAD_PATH, EXTRACT_PATH);
         let mut config = cache.new_test_config();
         config.lists = vec![FilterList {
             id: "test".to_string(),
