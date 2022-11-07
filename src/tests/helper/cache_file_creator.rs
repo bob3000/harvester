@@ -8,7 +8,7 @@ use std::{
 use crate::config::Config;
 
 pub const TEST_CACHE: &str = "test_cache";
-pub const TEST_OUT: &str = "test_out";
+pub const TEST_OUT: &str = "test_cache/output";
 
 #[derive(Debug)]
 pub struct CacheFileCreator {
