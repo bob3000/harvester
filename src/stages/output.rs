@@ -26,19 +26,6 @@ impl<'config> FilterController<'config, StageOutput, FileInput, File> {
         Ok(())
     }
 
-    /// returns a list of all existing tags taken from the configuration file
-    fn get_tags(&self) -> Vec<String> {
-        let mut tags: Vec<String> = Vec::new();
-        for list in self.config.lists.iter() {
-            list.tags.iter().for_each(|t| {
-                if !tags.contains(t) {
-                    tags.push(t.clone())
-                }
-            });
-        }
-        tags
-    }
-
     /// Attaches the readers and writers to the CategoryListIO objects
     ///
     /// * `categorize_path`: the file system path to where the category lists where stored
@@ -49,6 +36,7 @@ impl<'config> FilterController<'config, StageOutput, FileInput, File> {
         output_path: PathBuf,
     ) -> anyhow::Result<()> {
         self.category_lists = self
+            .config
             .get_tags()
             .iter()
             .map(|t| CategoryListIO::new(&t.clone()))
@@ -100,5 +88,108 @@ impl<'config> FilterController<'config, StageOutput, FileInput, File> {
         }
         join_all(handles).await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::{
+        collections::{HashMap, HashSet},
+        marker::PhantomData,
+        sync::{atomic::AtomicBool, Arc},
+    };
+
+    use crate::{
+        filter_list::FilterList, tests::helper::cache_file_creator::CacheFileCreator,
+        CATEGORIZE_PATH,
+    };
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_output_successful() {
+        // prepare folder structure
+        let cache = CacheFileCreator::new(CATEGORIZE_PATH, "output");
+        let mut config = cache.new_test_config();
+        // for output to work we need these FilterLists for the tags to be present in the config
+        config.lists = vec![
+            FilterList {
+                id: "advertising".to_string(),
+                comment: None,
+                compression: None,
+                source: "".to_string(),
+                tags: vec!["advertising".to_string()],
+                regex: r"(.*)".to_string(),
+            },
+            FilterList {
+                id: "malware".to_string(),
+                comment: None,
+                compression: None,
+                source: "".to_string(),
+                tags: vec!["malware".to_string()],
+                regex: r"(.*)".to_string(),
+            },
+        ];
+        // the contents of each filter list
+        let contents: HashMap<&str, String> = HashMap::from([
+            (
+                "advertising",
+                vec![
+                    "another.domain",
+                    "fith.domain",
+                    "one.domain",
+                    "sixth.domain",
+                ]
+                .join("\n")
+                    + "\n",
+            ),
+            (
+                "malware",
+                vec![
+                    "fith.domain",
+                    "fourth.domain",
+                    "sixth.domain",
+                    "third.domain",
+                ]
+                .join("\n")
+                    + "\n",
+            ),
+        ]);
+
+        for (list, content) in &contents {
+            cache.write_input(list, &content);
+        }
+
+        let mut output_controller = FilterController::<StageOutput, FileInput, File> {
+            stage: PhantomData,
+            cached_lists: Some(HashSet::new()),
+            config: &config,
+            filter_lists: vec![],
+            category_lists: vec![],
+            is_processing: Arc::new(AtomicBool::new(true)),
+        };
+        if let Err(e) = output_controller.run(&cache.inpath).await {
+            error!("{}", e);
+        }
+
+        let mut want = HashMap::new();
+        for category in vec!["advertising", "malware"] {
+            let cont = &contents.get(&category).unwrap();
+            let cont_str = cont
+                .trim_end()
+                .split("\n")
+                .map(|line| format!("0.0.0.0 {}", line.trim()))
+                .collect::<Vec<String>>()
+                .join("\n")
+                + "\n";
+            want.insert(category, cont_str).unwrap_or_default();
+        }
+        // read from files written and compare results for each category list
+        for category in vec!["advertising", "malware"] {
+            let got = cache.read_result(&category).unwrap();
+            let want = want.get(&category).unwrap();
+            assert_eq!(want, &got);
+        }
     }
 }
