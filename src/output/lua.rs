@@ -39,7 +39,7 @@ pub async fn lua_adapter(
                 let str_chunk = match String::from_utf8(chunk) {
                     Ok(s) => s,
                     Err(e) => {
-                        anyhow::anyhow!("{}", e);
+                        warn!("{}", e);
                         continue;
                     }
                 };

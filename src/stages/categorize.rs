@@ -141,7 +141,7 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
                     let str_chunk = match String::from_utf8(chunk) {
                         Ok(s) => s.trim().to_string(),
                         Err(e) => {
-                            anyhow::anyhow!("{}", e);
+                            warn!("{}", e);
                             continue;
                         }
                     };
