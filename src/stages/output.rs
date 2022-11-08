@@ -1,43 +1,31 @@
 use std::{
-    fs::{self, File},
+    fs::File,
     path::PathBuf,
     str::FromStr,
     sync::{atomic::Ordering, Arc},
 };
 
-use anyhow::Context;
-use futures::{future::join_all, lock::Mutex};
+use futures::future::join_all;
 use tokio::task::JoinHandle;
 
 use crate::{
-    filter_controller::{FilterController, StageOutput, CATEGORIZE_PATH},
+    filter_controller::{FilterController, StageOutput},
     input::file::FileInput,
     io::category_list_io::CategoryListIO,
 };
 
-impl FilterController<StageOutput, FileInput, File> {
+impl<'config> FilterController<'config, StageOutput, FileInput, File> {
     /// Runs the output stage
-    pub async fn run(&mut self) -> anyhow::Result<()> {
-        let mut categorize_path = PathBuf::from_str(&self.config.tmp_dir)?;
-        categorize_path.push(CATEGORIZE_PATH);
-        let out_path = PathBuf::from_str(&self.config.out_dir)?;
+    ///
+    /// * `categorize_base_path`: The path where categorized URL lists were stored
+    pub async fn run(&mut self, categorize_base_path: &str) -> anyhow::Result<()> {
+        let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
+        categorize_path.push(categorize_base_path);
+        let out_path = PathBuf::from_str(&self.config.output_dir)?;
 
         self.prepare_output(categorize_path.clone(), out_path)?;
         self.output().await?;
         Ok(())
-    }
-
-    /// returns a list of all existing tags taken from the configuration file
-    fn get_tags(&self) -> Vec<String> {
-        let mut tags: Vec<String> = Vec::new();
-        for list in self.config.lists.iter() {
-            list.tags.iter().for_each(|t| {
-                if !tags.contains(t) {
-                    tags.push(t.clone())
-                }
-            });
-        }
-        tags
     }
 
     /// Attaches the readers and writers to the CategoryListIO objects
@@ -50,6 +38,7 @@ impl FilterController<StageOutput, FileInput, File> {
         output_path: PathBuf,
     ) -> anyhow::Result<()> {
         self.category_lists = self
+            .config
             .get_tags()
             .iter()
             .map(|t| CategoryListIO::new(&t.clone()))
@@ -58,26 +47,18 @@ impl FilterController<StageOutput, FileInput, File> {
             .iter_mut()
             .try_for_each(|list| -> anyhow::Result<()> {
                 // set readers
-                let mut contents = fs::read_dir(&categorize_path)
-                    .with_context(|| "input file directory does not exist")?;
-                let entry = contents
-                    .find(|it| {
-                        if let Ok(it) = it {
-                            return it.file_name().to_str().unwrap() == list.name;
-                        }
-                        false
-                    })
-                    .ok_or_else(|| anyhow::anyhow!("file not found: {}", list.name))??;
-                list.reader = Some(Arc::new(Mutex::new(FileInput::new(entry.path(), None))));
+                list.attach_existing_input_file(&categorize_path)?;
 
                 // set writers
-                let mut out_path = output_path.clone();
-                fs::create_dir_all(&output_path)
-                    .with_context(|| "could not create out directory")?;
-                out_path.push(&list.name);
-                let out_file =
-                    File::create(out_path).with_context(|| "could not write out file")?;
-                list.writer = Some(Arc::new(Mutex::new(out_file)));
+                if self.cached_lists.as_ref().unwrap().contains(&list.name)
+                    && list.attach_existing_input_file(&categorize_path).is_ok()
+                    && list.attach_existing_file_writer(&output_path).is_ok()
+                {
+                    // set writer to None so it will be skipped in the output method
+                    list.writer = None;
+                    return Ok(());
+                }
+                list.attach_new_file_writer(&output_path)?;
                 Ok(())
             })?;
         Ok(())
@@ -90,12 +71,17 @@ impl FilterController<StageOutput, FileInput, File> {
             if !self.is_processing.load(Ordering::SeqCst) {
                 return Ok(());
             }
-            info!("{}", list.name);
+            // do nothing if the list was already written on the last run
+            if self.cached_lists.as_ref().unwrap().contains(&list.name) && list.writer.is_none() {
+                info!("Unchanged: {}", list.name);
+                continue;
+            }
+            info!("Updated: {}", list.name);
             let reader = Arc::clone(&list.reader.take().unwrap());
             let writer = Arc::clone(&list.writer.take().unwrap());
             let output_adapter =
                 self.config
-                    .out_format
+                    .output_format
                     .get_adapter(reader, writer, self.is_processing.clone());
             let handle = tokio::spawn(async move {
                 output_adapter.await;
@@ -104,5 +90,108 @@ impl FilterController<StageOutput, FileInput, File> {
         }
         join_all(handles).await;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use std::{
+        collections::{HashMap, HashSet},
+        marker::PhantomData,
+        sync::{atomic::AtomicBool, Arc},
+    };
+
+    use crate::{
+        filter_list::FilterList, tests::helper::cache_file_creator::CacheFileCreator,
+        CATEGORIZE_PATH,
+    };
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_output_successful() {
+        // prepare folder structure
+        let cache = CacheFileCreator::new("test_output_successful", CATEGORIZE_PATH, "output");
+        let mut config = cache.new_test_config();
+        // for output to work we need these FilterLists for the tags to be present in the config
+        config.lists = vec![
+            FilterList {
+                id: "advertising".to_string(),
+                comment: None,
+                compression: None,
+                source: "".to_string(),
+                tags: vec!["advertising".to_string()],
+                regex: r"(.*)".to_string(),
+            },
+            FilterList {
+                id: "malware".to_string(),
+                comment: None,
+                compression: None,
+                source: "".to_string(),
+                tags: vec!["malware".to_string()],
+                regex: r"(.*)".to_string(),
+            },
+        ];
+        // the contents of each filter list
+        let contents: HashMap<&str, String> = HashMap::from([
+            (
+                "advertising",
+                vec![
+                    "another.domain",
+                    "fith.domain",
+                    "one.domain",
+                    "sixth.domain",
+                ]
+                .join("\n")
+                    + "\n",
+            ),
+            (
+                "malware",
+                vec![
+                    "fith.domain",
+                    "fourth.domain",
+                    "sixth.domain",
+                    "third.domain",
+                ]
+                .join("\n")
+                    + "\n",
+            ),
+        ]);
+
+        for (list, content) in &contents {
+            cache.write_input(list, &content);
+        }
+
+        let mut output_controller = FilterController::<StageOutput, FileInput, File> {
+            stage: PhantomData,
+            cached_lists: Some(HashSet::new()),
+            config: &config,
+            filter_lists: vec![],
+            category_lists: vec![],
+            is_processing: Arc::new(AtomicBool::new(true)),
+        };
+        if let Err(e) = output_controller.run(&cache.inpath).await {
+            error!("{}", e);
+        }
+
+        let mut want = HashMap::new();
+        for category in vec!["advertising", "malware"] {
+            let cont = &contents.get(&category).unwrap();
+            let cont_str = cont
+                .trim_end()
+                .split("\n")
+                .map(|line| format!("0.0.0.0 {}", line.trim()))
+                .collect::<Vec<String>>()
+                .join("\n")
+                + "\n";
+            want.insert(category, cont_str).unwrap_or_default();
+        }
+        // read from files written and compare results for each category list
+        for category in vec!["advertising", "malware"] {
+            let got = cache.read_result(&category).unwrap();
+            let want = want.get(&category).unwrap();
+            assert_eq!(want, &got);
+        }
     }
 }

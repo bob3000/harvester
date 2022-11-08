@@ -1,37 +1,20 @@
 use std::{
-    fs::{self, File},
+    collections::HashSet,
     io::Write,
     marker::PhantomData,
-    path::PathBuf,
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc,
     },
 };
 
-use anyhow::Context;
-use futures::{lock::Mutex, Future};
-use reqwest::Url;
+use futures::Future;
 use tokio::task::JoinHandle;
 
 use crate::{
-    config::Config,
-    filter_list::FilterList,
-    input::{
-        file::{Compression, FileInput},
-        url::UrlInput,
-        Input,
-    },
-    io::category_list_io::CategoryListIO,
+    config::Config, filter_list::FilterList, input::Input, io::category_list_io::CategoryListIO,
     io::filter_list_io::FilterListIO,
 };
-
-/// Sub path for downloaded raw lists
-pub const RAW_PATH: &str = "raw";
-/// Sub path for transformed lists
-pub const TRANSFORM_PATH: &str = "transform";
-/// Sub path for the assembled categorized lists
-pub const CATEGORIZE_PATH: &str = "categorize";
 
 /// These structs represent the stages of a program run
 pub struct StageDownload;
@@ -41,83 +24,13 @@ pub struct StageOutput;
 
 /// The FilterController stores the in formation needed to run the data processing
 #[derive(Debug)]
-pub struct FilterController<Stage, R: Input + Send, W: Write + Send> {
+pub struct FilterController<'config, Stage, R: Input + Send, W: Write + Send> {
     pub stage: PhantomData<Stage>,
-    pub config: Config,
+    pub config: &'config Config,
+    pub cached_lists: Option<HashSet<String>>,
     pub filter_lists: Vec<FilterListIO<R, W>>,
     pub category_lists: Vec<CategoryListIO<R, W>>,
     pub is_processing: Arc<AtomicBool>,
-}
-
-/// Searches the file system in the given base directory for a file named after the list id. If the
-/// file was found it's being opened for reading and the reader is attached to the FilterListIO or
-/// otherwise returns an error.
-///
-/// * `list`: the FilterListIO where the reader
-/// * `base_dir`: the file system path to be searched
-pub fn get_input_file<W: Write + Send>(
-    list: &mut FilterListIO<FileInput, W>,
-    base_dir: PathBuf,
-    compression: Option<Compression>,
-) -> anyhow::Result<()> {
-    let mut contents =
-        fs::read_dir(base_dir).with_context(|| "input file directory does not exist")?;
-    let entry = contents
-        .find(|it| {
-            if let Ok(it) = it {
-                return it.file_name().to_str().unwrap() == list.filter_list.id;
-            }
-            false
-        })
-        .ok_or_else(|| anyhow::anyhow!("file not found: {}", list.filter_list.id))??;
-    let path = entry.path();
-    let file_name = path.as_os_str().to_str().unwrap();
-    match entry.metadata() {
-        Ok(meta) => {
-            if meta.len() == 0 {
-                debug!("File {} has zero length", file_name);
-                return Ok(());
-            };
-        }
-        Err(_) => {
-            debug!("File {} has no length", file_name);
-            return Ok(());
-        }
-    };
-    list.reader = Some(Arc::new(Mutex::new(FileInput::new(
-        entry.path(),
-        compression,
-    ))));
-    Ok(())
-}
-
-/// Turns the source string from the configuration into an Url object and attaches
-/// it to the FilterListIO object
-///
-/// * `list`: the FilterListIO object to receive the URL object
-pub fn create_input_urls(list: &mut FilterListIO<UrlInput, File>) -> anyhow::Result<()> {
-    let url = Url::parse(&list.filter_list.source)
-        .with_context(|| format!("config file error: {:?}", &list.filter_list))?;
-    let input = UrlInput::new(url);
-    list.reader = Some(Arc::new(Mutex::new(input)));
-    Ok(())
-}
-
-/// Creates and output file and it's parent directories, opens the file for writing
-/// and attaches it to the given FilterListIO object
-///
-/// * `list`: the FilterListIO object to receive the writer
-/// * `base_dir`: the base directory where the output directory is being created
-pub fn create_out_file<R: Input + Send>(
-    list: &mut FilterListIO<R, File>,
-    base_dir: PathBuf,
-) -> anyhow::Result<()> {
-    let mut out_path = base_dir;
-    fs::create_dir_all(&out_path).with_context(|| "could not create out directory")?;
-    out_path.push(&list.filter_list.id);
-    let out_file = File::create(out_path).with_context(|| "could not write out file")?;
-    list.writer = Some(Arc::new(Mutex::new(out_file)));
-    Ok(())
 }
 
 /// `process` is the main data processing function. It reads chunks from the source
@@ -166,7 +79,6 @@ where
         let filter_list = Arc::new(filter_list.clone());
         let list = Arc::clone(&filter_list);
 
-        info!("{}: {}", filter_list.id, filter_list.source);
         let is_proc = Arc::clone(&is_processing);
         let handle = tokio::spawn(async move {
             let mut chunks_matched = 0;
@@ -227,6 +139,7 @@ mod tests {
     use crate::filter_list::FilterList;
     use crate::tests::helper::cursor_input::CursorInput;
     use futures::future::join_all;
+    use futures::lock::Mutex;
 
     use super::*;
 

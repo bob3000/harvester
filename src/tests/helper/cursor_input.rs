@@ -37,4 +37,8 @@ impl Input for CursorInput {
         self.cursor = BufReader::new(Cursor::new(self.input_data.clone()));
         Ok(())
     }
+
+    async fn len(&mut self) -> anyhow::Result<u64> {
+        Ok(self.input_data.len() as u64)
+    }
 }
