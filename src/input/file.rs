@@ -116,6 +116,9 @@ impl Input for FileInput {
                             return Err(anyhow::anyhow!("Error reading chunk from file: line length exceeds buffer capacity"));
                         }
                     }
+                    Ok(n) if n > vec_buf.len() => {
+                        return Err(anyhow::anyhow!("Error reading chunk from file:  chunk exceedes maximum line length of {} bytes", vec_buf.len()));
+                    }
                     Err(e) => return Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
                     _ => return Ok(None),
                 }
