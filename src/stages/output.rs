@@ -16,6 +16,8 @@ use crate::{
 
 impl<'config> FilterController<'config, StageOutput, FileInput, File> {
     /// Runs the output stage
+    ///
+    /// * `categorize_base_path`: The path where categorized URL lists were stored
     pub async fn run(&mut self, categorize_base_path: &str) -> anyhow::Result<()> {
         let mut categorize_path = PathBuf::from_str(&self.config.cache_dir)?;
         categorize_path.push(categorize_base_path);

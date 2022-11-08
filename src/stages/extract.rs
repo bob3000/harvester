@@ -10,6 +10,10 @@ use crate::{
     io::filter_list_io::FilterListIO,
 };
 
+/// regex_match matches a line against a regex an extracts the first match group
+///
+/// * `flist`: FilterList where the chunk to be matched belongs to
+/// * `chunk`: A line from a list of URL to be matched against
 async fn regex_match(
     flist: Arc<FilterList>,
     chunk: Option<Vec<u8>>,
@@ -38,6 +42,9 @@ async fn regex_match(
 /// being extracted
 impl<'config> FilterController<'config, StageExtract, FileInput, File> {
     /// Runs the extract stage and returns the controller for the categorize stage
+    ///
+    /// * `download_base_path`: The path where downloaded lists have been stored
+    /// * `extract_base_path`: The path where the extraction result will be written to
     pub async fn run(
         &mut self,
         download_base_path: &str,
@@ -64,7 +71,7 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
 
     /// Attaches readers and writers to the FilterListIO objects
     ///
-    /// * `raw_path`: the file system path to where the downloaded lists were stored
+    /// * `download_path`: the file system path to where the downloaded lists were stored
     /// * `extract_path`: the file system path to where the extracted URLs are written to
     async fn prepare_extract(
         &mut self,

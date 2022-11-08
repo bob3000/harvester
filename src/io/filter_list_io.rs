@@ -61,6 +61,7 @@ impl<W: Write + Send> FilterListIO<FileInput, W> {
     /// otherwise returns an error.
     ///
     /// * `base_dir`: the file system path to be searched
+    /// * `compression`: file compression method to be expected
     pub fn attach_existing_input_file(
         &mut self,
         base_dir: &Path,
@@ -138,7 +139,6 @@ impl<R: Input + Send> FilterListIO<R, File> {
 
     /// Tries to read the potential output file for inspection
     ///
-    /// * `list`: the FilterListIO object to receive the writer
     /// * `base_dir`: the base directory where the output file is tried to read
     pub fn attach_existing_file_writer(&mut self, base_dir: &Path) -> anyhow::Result<()> {
         let out_path = base_dir;

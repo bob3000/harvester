@@ -35,6 +35,8 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
 
     /// Runs the data processing function with UrlInput as input source and a
     /// file as output destination. Returns the controller for the extract stage
+    ///
+    /// * `download_base_path`: target path for files being downloaded
     pub async fn run(
         &mut self,
         download_base_path: &str,
@@ -57,7 +59,7 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
 
     /// Equips the FilterListIO objects with a reader and writers
     ///
-    /// * `raw_path`: the file system path to the directory where the raw lists
+    /// * `download_path`: the file system path to the directory where the raw lists
     ///               are going to be downloaded
     async fn prepare_download(&mut self, download_path: PathBuf) -> anyhow::Result<()> {
         let configured_lists: Vec<FilterListIO<UrlInput, File>> = self

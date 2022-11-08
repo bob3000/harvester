@@ -22,6 +22,9 @@ use crate::{
 /// A category corresponds to a tag on a list.
 impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
     /// runs the categorize stage and return controller for the output stage
+    ///
+    /// * `extract_base_path`: The source path containing the URL lists
+    /// * `categorize_base_path`: The target path for the categorized URL lists
     pub async fn run(
         &mut self,
         extract_base_path: &str,
@@ -47,8 +50,8 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
 
     /// Attaches the source file reader to the FilterListIO
     ///
-    /// * `extract_path`: The directory where the extracted data from the previous
-    ///                   step was stored
+    /// * `extract_path`: The directory where the extracted data from the previous stage was stored
+    /// * `categorize_path`: The directory wehre the results of this stage will be stored
     fn prepare_categorize(
         &mut self,
         extract_path: &Path,
