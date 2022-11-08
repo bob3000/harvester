@@ -9,6 +9,9 @@ pub trait Input {
     /// input sources are supposed to provide the data chunk wise
     async fn chunk(&mut self) -> anyhow::Result<Option<Vec<u8>>>;
 
-    /// Start reading from the beginning
+    /// start reading from the beginning
     async fn reset(&mut self) -> anyhow::Result<()>;
+
+    /// returns the length of the content if available
+    async fn len(&mut self) -> anyhow::Result<u64>;
 }

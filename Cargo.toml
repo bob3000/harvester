@@ -31,6 +31,6 @@ async-compression = { version = "0.3.14", features = [
 bytes = "1.2.1"
 log = "0.4.17"
 env_logger = "0.9.1"
-clap = { version = "4.0.13", features = ["derive"] }
+clap = { version = "4.0.22", features = ["derive"] }
 colored = "2.0.0"
 tokio-tar = "0.3.0"

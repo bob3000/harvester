@@ -7,7 +7,7 @@ use async_trait::async_trait;
 use futures::StreamExt;
 use serde::{Deserialize, Serialize};
 use tokio::{
-    fs::File,
+    fs::{self, File},
     io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader},
 };
 use tokio_tar::{Archive, Entry};
@@ -19,6 +19,7 @@ pub enum Compression {
     TarGz(String),
 }
 
+#[derive(Debug)]
 pub enum Handle {
     File(BufReader<File>),
     Gz(GzipDecoder<BufReader<File>>),
@@ -26,6 +27,7 @@ pub enum Handle {
 }
 
 /// FileInput reads data from a File
+#[derive(Debug)]
 pub struct FileInput {
     /// file compression method used
     compression: Option<Compression>,
@@ -97,7 +99,7 @@ impl Input for FileInput {
         ///
         /// * `archive`: the file handle to read from
         /// * `vec_buf`: the target buffer containing the line
-        async fn read_bytes_to_newline(
+        async fn read_bytes_till_newline(
             archive: &mut (impl AsyncRead + Unpin),
             mut vec_buf: Vec<u8>,
         ) -> anyhow::Result<Option<Vec<u8>>> {
@@ -111,8 +113,11 @@ impl Input for FileInput {
                             }
                         vec_buf.extend(byte_buf);
                         if vec_buf.len() >= vec_buf.capacity() {
-                            return Err(anyhow::anyhow!("Error reading chunk from file: line lenght exceedes buffer capacity"));
+                            return Err(anyhow::anyhow!("Error reading chunk from file: line length exceeds buffer capacity"));
                         }
+                    }
+                    Ok(n) if n > vec_buf.len() => {
+                        return Err(anyhow::anyhow!("Error reading chunk from file:  chunk exceedes maximum line length of {} bytes", vec_buf.len()));
                     }
                     Err(e) => return Err(anyhow::anyhow!("Error reading chunk from file: {}", e)),
                     _ => return Ok(None),
@@ -136,8 +141,8 @@ impl Input for FileInput {
                 Ok(_) => Ok(None),
                 Err(e) => Err(anyhow::anyhow!("Error reading line from file: {}", e)),
             },
-            Handle::Gz(archive) => read_bytes_to_newline(archive, vec_buf).await,
-            Handle::TarGz(archive) => read_bytes_to_newline(archive, vec_buf).await,
+            Handle::Gz(archive) => read_bytes_till_newline(archive, vec_buf).await,
+            Handle::TarGz(archive) => read_bytes_till_newline(archive, vec_buf).await,
         }
     }
 
@@ -148,5 +153,19 @@ impl Input for FileInput {
         }
         self.init_handle().await?;
         Ok(())
+    }
+
+    /// get the file length from file metadata
+    async fn len(&mut self) -> anyhow::Result<u64> {
+        let content_len = fs::metadata(&self.path)
+            .await
+            .with_context(|| {
+                format!(
+                    "file {} has no length",
+                    self.path.to_str().unwrap_or_else(|| "<no-name>")
+                )
+            })?
+            .len();
+        Ok(content_len)
     }
 }
