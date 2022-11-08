@@ -31,7 +31,7 @@ pub async fn hostsfile_adapter(
                 let str_chunk = match String::from_utf8(chunk) {
                     Ok(s) => s,
                     Err(e) => {
-                        anyhow::anyhow!("{}", e);
+                        warn!("{}", e);
                         continue;
                     }
                 };
