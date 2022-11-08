@@ -14,10 +14,7 @@ use futures::future::join_all;
 
 use crate::{
     config::Config,
-    filter_controller::{
-        create_input_urls, create_out_file, get_out_file, process, FilterController, StageDownload,
-        StageExtract, RAW_PATH,
-    },
+    filter_controller::{process, FilterController, StageDownload, StageExtract},
     input::{file::FileInput, url::UrlInput},
     io::filter_list_io::FilterListIO,
 };
@@ -38,11 +35,16 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
 
     /// Runs the data processing function with UrlInput as input source and a
     /// file as output destination. Returns the controller for the extract stage
-    pub async fn run(&mut self) -> anyhow::Result<FilterController<StageExtract, FileInput, File>> {
-        let mut raw_path = PathBuf::from_str(&self.config.cache_dir)?;
-        raw_path.push(RAW_PATH);
+    ///
+    /// * `download_base_path`: target path for files being downloaded
+    pub async fn run(
+        &mut self,
+        download_base_path: &str,
+    ) -> anyhow::Result<FilterController<StageExtract, FileInput, File>> {
+        let mut download_path = PathBuf::from_str(&self.config.cache_dir)?;
+        download_path.push(download_base_path);
 
-        self.prepare_download(raw_path.clone()).await?;
+        self.prepare_download(download_path.clone()).await?;
         self.download().await?;
         let extract_controller = FilterController::<StageExtract, FileInput, File> {
             stage: PhantomData,
@@ -57,9 +59,9 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
 
     /// Equips the FilterListIO objects with a reader and writers
     ///
-    /// * `raw_path`: the file system path to the directory where the raw lists
+    /// * `download_path`: the file system path to the directory where the raw lists
     ///               are going to be downloaded
-    async fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
+    async fn prepare_download(&mut self, download_path: PathBuf) -> anyhow::Result<()> {
         let configured_lists: Vec<FilterListIO<UrlInput, File>> = self
             .config
             .lists
@@ -72,17 +74,16 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
                 return Ok(());
             }
 
-            create_input_urls(&mut list)?;
+            list.attach_url_reader()?;
 
             let mut is_cached = false;
             // we can only check for a cached result if the former downloaded file is available
-            if get_out_file(&mut list, &raw_path).is_ok() {
-                debug!("{}: cached file not found", list.filter_list.id);
+            if list.attach_existing_file_writer(&download_path).is_ok() {
                 is_cached = list.is_cached().await?;
             }
             if !is_cached {
                 info!("Updated: {}", list.filter_list.id);
-                create_out_file(&mut list, &raw_path)?;
+                list.attach_new_file_writer(&download_path)?;
                 self.filter_lists.push(list);
             } else {
                 info!("Unchanged: {}", list.filter_list.id);

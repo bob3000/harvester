@@ -4,15 +4,16 @@ use futures::future::join_all;
 use regex::Regex;
 
 use crate::{
-    filter_controller::{
-        create_out_file, get_input_file, process, FilterController, StageCategorize, StageExtract,
-        RAW_PATH, TRANSFORM_PATH,
-    },
+    filter_controller::{process, FilterController, StageCategorize, StageExtract},
     filter_list::FilterList,
     input::file::FileInput,
     io::filter_list_io::FilterListIO,
 };
 
+/// regex_match matches a line against a regex an extracts the first match group
+///
+/// * `flist`: FilterList where the chunk to be matched belongs to
+/// * `chunk`: A line from a list of URL to be matched against
 async fn regex_match(
     flist: Arc<FilterList>,
     chunk: Option<Vec<u8>>,
@@ -41,15 +42,20 @@ async fn regex_match(
 /// being extracted
 impl<'config> FilterController<'config, StageExtract, FileInput, File> {
     /// Runs the extract stage and returns the controller for the categorize stage
+    ///
+    /// * `download_base_path`: The path where downloaded lists have been stored
+    /// * `extract_base_path`: The path where the extraction result will be written to
     pub async fn run(
         &mut self,
+        download_base_path: &str,
+        extract_base_path: &str,
     ) -> anyhow::Result<FilterController<StageCategorize, FileInput, File>> {
-        let mut raw_path = PathBuf::from_str(&self.config.cache_dir)?;
-        raw_path.push(RAW_PATH);
-        let mut trans_path = PathBuf::from_str(&self.config.cache_dir)?;
-        trans_path.push(TRANSFORM_PATH);
+        let mut download_path = PathBuf::from_str(&self.config.cache_dir)?;
+        download_path.push(download_base_path);
+        let mut extract_path = PathBuf::from_str(&self.config.cache_dir)?;
+        extract_path.push(extract_base_path);
 
-        self.prepare_extract(raw_path.clone(), trans_path.clone())
+        self.prepare_extract(download_path.clone(), extract_path.clone())
             .await?;
         self.extract().await?;
         let categorize_controller = FilterController::<StageCategorize, FileInput, File> {
@@ -65,11 +71,11 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
 
     /// Attaches readers and writers to the FilterListIO objects
     ///
-    /// * `raw_path`: the file system path to where the downloaded lists were stored
+    /// * `download_path`: the file system path to where the downloaded lists were stored
     /// * `extract_path`: the file system path to where the extracted URLs are written to
     async fn prepare_extract(
         &mut self,
-        raw_path: PathBuf,
+        download_path: PathBuf,
         extract_path: PathBuf,
     ) -> anyhow::Result<()> {
         let configured_lists: Vec<FilterListIO<FileInput, File>> = self
@@ -85,13 +91,22 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
                 .as_ref()
                 .unwrap()
                 .contains(&list.filter_list.id)
+                && list
+                    .attach_existing_input_file(&download_path, None)
+                    .is_ok()
+                && list.attach_existing_file_writer(&extract_path).is_ok()
             {
+                list.writer = None;
                 info!("Unchanged: {}", list.filter_list.id);
             } else {
+                self.cached_lists
+                    .as_mut()
+                    .unwrap()
+                    .retain(|l| l != &list.filter_list.id);
                 info!("Updated: {}", list.filter_list.id);
                 let compression = list.filter_list.compression.clone();
-                get_input_file(&mut list, &raw_path, compression)?;
-                create_out_file(&mut list, &extract_path)?;
+                list.attach_existing_input_file(&download_path, compression)?;
+                list.attach_new_file_writer(&extract_path)?;
                 self.filter_lists.push(list);
             }
         }
@@ -113,7 +128,52 @@ impl<'config> FilterController<'config, StageExtract, FileInput, File> {
 
 #[cfg(test)]
 mod tests {
+    use std::{collections::HashSet, sync::atomic::AtomicBool};
+
+    use crate::{tests::helper::cache_file_creator::CacheFileCreator, DOWNLOAD_PATH, EXTRACT_PATH};
+
     use super::*;
+
+    #[tokio::test]
+    async fn test_extract_successful() {
+        let cache = CacheFileCreator::new("test_extract_successful", DOWNLOAD_PATH, EXTRACT_PATH);
+        let mut config = cache.new_test_config();
+        config.lists = vec![FilterList {
+            id: "test".to_string(),
+            comment: None,
+            compression: None,
+            source: "".to_string(),
+            tags: vec![],
+            // the regex for matching lines
+            regex: r"127.0.0.1 (.*)".to_string(),
+        }];
+        // prepare the file to extract from
+        cache.write_input(
+            &config.lists[0].id,
+            r#"
+127.0.0.1 one.domain
+127.0.0.1 another.domain
+"#,
+        );
+
+        let mut extract_controller = FilterController::<StageExtract, FileInput, File> {
+            stage: PhantomData,
+            cached_lists: Some(HashSet::new()),
+            config: &config,
+            filter_lists: vec![],
+            category_lists: vec![],
+            is_processing: Arc::new(AtomicBool::new(true)),
+        };
+        if let Err(e) = extract_controller.run(&cache.inpath, &cache.outpath).await {
+            error!("{}", e);
+        }
+        // we expect the result file only to contain the domains according to the regex
+        let want = r#"one.domain
+another.domain
+"#;
+        let got = cache.read_result(&config.lists[0].id).unwrap();
+        assert_eq!(want, got);
+    }
 
     #[tokio::test]
     async fn test_regex_match_positive() {

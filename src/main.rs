@@ -26,6 +26,13 @@ use log_level::LogLevel;
 
 use crate::config::Config;
 
+/// Sub path for downloaded raw lists
+pub const DOWNLOAD_PATH: &str = "download";
+/// Sub path for extracted lists
+pub const EXTRACT_PATH: &str = "extract";
+/// Sub path for the assembled categorized lists
+pub const CATEGORIZE_PATH: &str = "categorize";
+
 #[macro_use]
 extern crate log;
 
@@ -76,7 +83,7 @@ async fn main() -> anyhow::Result<()> {
 
     // start the processing chain by downloading the filter lists
     info!("{}", "Downalading lists ...".yellow());
-    let mut extract_controller = match download_controller.run().await {
+    let mut extract_controller = match download_controller.run(DOWNLOAD_PATH).await {
         Ok(c) => c,
         Err(e) => {
             error!("{:?}", e);
@@ -88,7 +95,8 @@ async fn main() -> anyhow::Result<()> {
     if is_processing.load(Ordering::SeqCst) {
         info!("{}", "Extracting domains ...".yellow());
     }
-    let mut categorize_controller = match extract_controller.run().await {
+    let mut categorize_controller = match extract_controller.run(DOWNLOAD_PATH, EXTRACT_PATH).await
+    {
         Ok(c) => c,
         Err(e) => {
             error!("{:?}", e);
@@ -100,7 +108,10 @@ async fn main() -> anyhow::Result<()> {
     if is_processing.load(Ordering::SeqCst) {
         info!("{}", "Categorizing domains ...".yellow());
     }
-    let mut output_controller = match categorize_controller.run().await {
+    let mut output_controller = match categorize_controller
+        .run(EXTRACT_PATH, CATEGORIZE_PATH)
+        .await
+    {
         Ok(c) => c,
         Err(e) => {
             error!("{:?}", e);
@@ -112,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
     if is_processing.load(Ordering::SeqCst) {
         info!("{}", "Creating output files ...".yellow());
     }
-    match output_controller.run().await {
+    match output_controller.run(CATEGORIZE_PATH).await {
         Ok(c) => c,
         Err(e) => {
             error!("{:?}", e);
@@ -121,7 +132,10 @@ async fn main() -> anyhow::Result<()> {
     };
 
     if let Err(e) = config.save_to_cache() {
-        error!("Error writing last config: {}", e);
+        error!(
+            "Error writing last configuration file to cache directory: {}",
+            e
+        );
     }
 
     Ok(())
