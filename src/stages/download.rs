@@ -1,30 +1,32 @@
 use std::{
+    collections::HashSet,
     fs::File,
     marker::PhantomData,
     path::PathBuf,
     str::FromStr,
-    sync::{atomic::AtomicBool, Arc},
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc,
+    },
 };
 
 use futures::future::join_all;
 
 use crate::{
     config::Config,
-    filter_controller::{
-        create_input_urls, create_out_file, process, FilterController, StageDownload, StageExtract,
-        RAW_PATH,
-    },
+    filter_controller::{process, FilterController, StageDownload, StageExtract},
     input::{file::FileInput, url::UrlInput},
     io::filter_list_io::FilterListIO,
 };
 
 /// This implementation for UrlInput and File is the first phase where the lists
 /// are downloaded.
-impl FilterController<StageDownload, UrlInput, File> {
-    pub fn new(config: Config, is_processing: Arc<AtomicBool>) -> Self {
+impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
+    pub fn new(config: &'config Config, is_processing: Arc<AtomicBool>) -> Self {
         Self {
             stage: PhantomData,
             config,
+            cached_lists: Some(HashSet::new()),
             filter_lists: vec![],
             category_lists: vec![],
             is_processing,
@@ -33,15 +35,21 @@ impl FilterController<StageDownload, UrlInput, File> {
 
     /// Runs the data processing function with UrlInput as input source and a
     /// file as output destination. Returns the controller for the extract stage
-    pub async fn run(&mut self) -> anyhow::Result<FilterController<StageExtract, FileInput, File>> {
-        let mut raw_path = PathBuf::from_str(&self.config.tmp_dir)?;
-        raw_path.push(RAW_PATH);
+    ///
+    /// * `download_base_path`: target path for files being downloaded
+    pub async fn run(
+        &mut self,
+        download_base_path: &str,
+    ) -> anyhow::Result<FilterController<StageExtract, FileInput, File>> {
+        let mut download_path = PathBuf::from_str(&self.config.cache_dir)?;
+        download_path.push(download_base_path);
 
-        self.prepare_download(raw_path.clone())?;
+        self.prepare_download(download_path.clone()).await?;
         self.download().await?;
         let extract_controller = FilterController::<StageExtract, FileInput, File> {
             stage: PhantomData,
-            config: self.config.clone(),
+            cached_lists: self.cached_lists.take(),
+            config: self.config,
             filter_lists: vec![],
             category_lists: vec![],
             is_processing: self.is_processing.clone(),
@@ -51,22 +59,40 @@ impl FilterController<StageDownload, UrlInput, File> {
 
     /// Equips the FilterListIO objects with a reader and writers
     ///
-    /// * `raw_path`: the file system path to the directory where the raw lists
+    /// * `download_path`: the file system path to the directory where the raw lists
     ///               are going to be downloaded
-    fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
-        self.filter_lists = self
+    async fn prepare_download(&mut self, download_path: PathBuf) -> anyhow::Result<()> {
+        let configured_lists: Vec<FilterListIO<UrlInput, File>> = self
             .config
             .lists
             .iter()
             .map(|f| FilterListIO::new(f.clone()))
             .collect();
-        self.filter_lists
-            .iter_mut()
-            .try_for_each(|l| -> anyhow::Result<()> {
-                create_input_urls(l)?;
-                create_out_file(l, raw_path.clone())?;
-                Ok(())
-            })?;
+
+        for mut list in configured_lists.into_iter() {
+            if !self.is_processing.load(Ordering::SeqCst) {
+                return Ok(());
+            }
+
+            list.attach_url_reader()?;
+
+            let mut is_cached = false;
+            // we can only check for a cached result if the former downloaded file is available
+            if list.attach_existing_file_writer(&download_path).is_ok() {
+                is_cached = list.is_cached().await?;
+            }
+            if !is_cached {
+                info!("Updated: {}", list.filter_list.id);
+                list.attach_new_file_writer(&download_path)?;
+                self.filter_lists.push(list);
+            } else {
+                info!("Unchanged: {}", list.filter_list.id);
+                self.cached_lists
+                    .as_mut()
+                    .unwrap()
+                    .insert(list.filter_list.id);
+            }
+        }
         Ok(())
     }
 
