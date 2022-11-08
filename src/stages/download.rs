@@ -59,7 +59,7 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
     ///
     /// * `raw_path`: the file system path to the directory where the raw lists
     ///               are going to be downloaded
-    async fn prepare_download(&mut self, raw_path: PathBuf) -> anyhow::Result<()> {
+    async fn prepare_download(&mut self, download_path: PathBuf) -> anyhow::Result<()> {
         let configured_lists: Vec<FilterListIO<UrlInput, File>> = self
             .config
             .lists
@@ -76,12 +76,12 @@ impl<'config> FilterController<'config, StageDownload, UrlInput, File> {
 
             let mut is_cached = false;
             // we can only check for a cached result if the former downloaded file is available
-            if list.attach_existing_file_writer(&raw_path).is_ok() {
+            if list.attach_existing_file_writer(&download_path).is_ok() {
                 is_cached = list.is_cached().await?;
             }
             if !is_cached {
                 info!("Updated: {}", list.filter_list.id);
-                list.attach_new_file_writer(&raw_path)?;
+                list.attach_new_file_writer(&download_path)?;
                 self.filter_lists.push(list);
             } else {
                 info!("Unchanged: {}", list.filter_list.id);
