@@ -2,7 +2,6 @@
 *.txt
 *.json
 *.gz
-/out
-/tmp
+/cache
+/result
 /test_cache
-/test_out
