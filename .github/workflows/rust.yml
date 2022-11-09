@@ -62,8 +62,9 @@ jobs:
         username: ${{ github.repository_owner }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - id: docker-tag
-      uses: yuya-takeyama/docker-tag-from-github-ref-action@v1
+    - name: "Determine Branch"
+      id: branches
+      uses: transferwise/sanitize-branch-name@v1
 
     - name: Build and push
       uses: docker/build-push-action@v3
@@ -75,4 +76,4 @@ jobs:
         cache-to: type=inline
         tags: |
           ghcr.io/bob3000/harvester:latest
-          ghcr.io/bob3000/harvester:${{ steps.docker-tag.outputs.tag }}
+          ghcr.io/bob3000/harvester:${{ steps.branches.outputs.sanitized-branch-name }}"'
