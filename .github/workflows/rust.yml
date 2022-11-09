@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  setup:
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -70,8 +70,8 @@ jobs:
         context: .
         platforms: linux/amd64
         push: true
-        # cache-from: type=registry,ref=ghcr.io/bob3000/harvester:latest
-        # cache-to: type=inline
+        cache-from: type=registry,ref=ghcr.io/bob3000/harvester:latest
+        cache-to: type=inline
         tags: |
           ghcr.io/bob3000/harvester:latest
           ghcr.io/bob3000/harvester:${{ steps.branches.outputs.sanitized-branch-name }}
