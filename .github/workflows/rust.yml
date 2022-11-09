@@ -71,8 +71,8 @@ jobs:
         context: .
         platforms: linux/amd64,linux/arm64
         push: true
+        cache-from: type=registry,ref=bob3000/harvester:latest
+        cache-to: type=inline
         tags: |
           ghcr.io/bob3000/harvester:latest
           ghcr.io/bob3000/harvester:${{ steps.docker-tag.outputs.tag }}
-          cache-from: type=registry,ref=bob3000/harvester:latest
-          cache-to: type=inline
