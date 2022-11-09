@@ -10,10 +10,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
-
+  setup:
     runs-on: ubuntu-latest
-
     steps:
     - uses: actions/checkout@v3
     - uses: actions/cache@v3
@@ -49,6 +47,10 @@ jobs:
         cargo check
         cargo test --all
 
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2
 
@@ -72,7 +74,7 @@ jobs:
         context: .
         platforms: linux/amd64
         push: true
-        cache-from: type=registry,ref=bob3000/harvester:latest
+        cache-from: type=registry,ref=ghcr.io/bob3000/harvester:latest
         cache-to: type=inline
         tags: |
           ghcr.io/bob3000/harvester:latest
