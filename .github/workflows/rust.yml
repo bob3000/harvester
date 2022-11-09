@@ -70,7 +70,7 @@ jobs:
       uses: docker/build-push-action@v3
       with:
         context: .
-        platforms: linux/amd64,linux/arm64
+        platforms: linux/amd64
         push: true
         cache-from: type=registry,ref=bob3000/harvester:latest
         cache-to: type=inline
