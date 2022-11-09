@@ -37,6 +37,9 @@ jobs:
         rustc --version
         cargo clippy --version
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
     - name: Lint
       run: |
         cargo fmt -- --check
@@ -74,8 +77,8 @@ jobs:
         context: .
         platforms: linux/amd64
         push: true
-        cache-from: type=registry,ref=ghcr.io/bob3000/harvester:latest
-        cache-to: type=inline
+        # cache-from: type=registry,ref=ghcr.io/bob3000/harvester:latest
+        # cache-to: type=inline
         tags: |
           ghcr.io/bob3000/harvester:latest
           ghcr.io/bob3000/harvester:${{ steps.branches.outputs.sanitized-branch-name }}
