@@ -76,4 +76,4 @@ jobs:
         cache-to: type=inline
         tags: |
           ghcr.io/bob3000/harvester:latest
-          ghcr.io/bob3000/harvester:${{ steps.branches.outputs.sanitized-branch-name }}"'
+          ghcr.io/bob3000/harvester:${{ steps.branches.outputs.sanitized-branch-name }}
