@@ -1,0 +1,8 @@
+.git
+*.gz
+*.json
+*.tar.gz
+/cache
+/result
+/target
+/test_cache
