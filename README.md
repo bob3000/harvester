@@ -9,6 +9,8 @@ application they are supposed to be compatible with.
 Harvester allows you the to download the lists from various sources and transform
 them into a common output format.
 
+[TOC]
+
 ## Features
 
 ### Output formats
@@ -36,8 +38,8 @@ Example:
 
 ```json
 {
-  "tmp_dir": "./tmp",
-  "out_dir": "./out",
+  "tmp_dir": "./cache",
+  "out_dir": "./result",
   "out_format": "Lua",
   "lists": [
     {
@@ -139,3 +141,15 @@ A tag describes in which assembled category list a source list will end up
 ##### regex
 
 A regular expression applied to every line of a source list to extract the URL
+
+## Building and running the container image
+
+```sh
+podman image build -t bob3000/harvester .
+podman container run -ti --rm --name harvester \
+  -v $PWD/example_lists/config-full.json:/home/harvester/config.json \
+  -v $PWD/cache:/home/harvester/cache \
+  -v $PWD/result:/home/harvester/result bob3000/harvester:latest \
+  --config config.json \
+  --log-level info
+```

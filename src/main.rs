@@ -39,7 +39,7 @@ extern crate log;
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
-    #[arg(short, long, default_value = "config.json")]
+    #[arg(short, long)]
     config: String,
     #[arg(value_enum, short, long, default_value = "warn")]
     log_level: LogLevel,
