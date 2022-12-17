@@ -2,6 +2,7 @@
 *.txt
 *.json
 *.gz
+/example_lists/*
 /target
 /cache
 /result
