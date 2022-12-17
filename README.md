@@ -16,19 +16,19 @@ them into a common output format.
 ### Output formats
 
 - `Hostsfile`: hosts file format as found in `/etc/hosts`
-    Example output:
-    ```
-    0.0.0.0 malicious.com
-    0.0.0.0 unwanted.net
-    ```
+  Example output:
+  ```
+  0.0.0.0 malicious.com
+  0.0.0.0 unwanted.net
+  ```
 - `Lua`: a lua module returning a table
-    Example output:
-    ```
-    return {
-      "malicious.com",
-      "unwanted.net",
-    }
-    ```
+  Example output:
+  ```
+  return {
+    "malicious.com",
+    "unwanted.net",
+  }
+  ```
 
 ## Getting started
 
@@ -152,4 +152,26 @@ podman container run -ti --rm --name harvester \
   -v $PWD/result:/home/harvester/result bob3000/harvester:latest \
   --config config.json \
   --log-level info
+```
+
+## Building and running the push image
+
+```sh
+podman image build -f Dockerfile.push -t bob3000/harvester-push .
+podman run -ti --rm --name harvester-push \
+  --env-file ../harvester/harvester-push.env \
+  -e HARVESTER_CONFIG="$(cat ../harvester/example_lists/config-full.json)" \
+  -v $PWD:/home/harvester \
+  bob3000/harvester-push
+```
+
+### Example env file
+
+```env
+GIT_URL=https://gitlab-ci-token:<gitlab-token>@gitlab.com/bob3000/rules3001.git
+GIT_TARGET_BRANCH=rules
+GIT_USER_NAME=<username>
+GIT_USER_EMAIL=<email>
+HARVESTER_ARGS=--log-level info
+
 ```
