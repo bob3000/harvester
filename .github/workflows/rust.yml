@@ -64,7 +64,7 @@ jobs:
       id: branches
       uses: transferwise/sanitize-branch-name@v1
 
-    - name: Build and push
+    - name: Build and push base image
       uses: docker/build-push-action@v3
       with:
         context: .
@@ -72,6 +72,20 @@ jobs:
         push: true
         cache-from: type=registry,ref=ghcr.io/bob3000/harvester:latest
         cache-to: type=inline
+        file: Dockerfile
         tags: |
           ghcr.io/bob3000/harvester:latest
           ghcr.io/bob3000/harvester:${{ steps.branches.outputs.sanitized-branch-name }}
+
+    - name: Build and push push image
+      uses: docker/build-push-action@v3
+      with:
+        context: .
+        platforms: linux/amd64
+        push: true
+        cache-from: type=registry,ref=ghcr.io/bob3000/harvester-push:latest
+        cache-to: type=inline
+        file: Dockerfile.push
+        tags: |
+          ghcr.io/bob3000/harvester-push:latest
+          ghcr.io/bob3000/harvester-push:${{ steps.branches.outputs.sanitized-branch-name }}
