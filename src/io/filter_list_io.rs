@@ -108,7 +108,7 @@ impl<R: Input + Send> FilterListIO<R, File> {
         let file = self.writer.as_ref().unwrap().lock().await;
         let file_meta = file
             .metadata()
-            .with_context(|| format!("file {:?} has no metadata", file))?;
+            .with_context(|| format!("file {file:?} has no metadata"))?;
         let file_len = file_meta.len();
         Ok(file_len)
     }

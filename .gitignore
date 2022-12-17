@@ -1,7 +1,9 @@
-/target
+*.env
 *.txt
 *.json
 *.gz
+/target
 /cache
 /result
 /test_cache
+/container_cache/
