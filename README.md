@@ -9,7 +9,28 @@ application they are supposed to be compatible with.
 Harvester allows you the to download the lists from various sources and transform
 them into a common output format.
 
-[TOC]
+<!-- vim-markdown-toc GFM -->
+
+* [Features](#features)
+  * [Output formats](#output-formats)
+* [Getting started](#getting-started)
+* [Configuration settings](#configuration-settings)
+    * [tmp_dir](#tmp_dir)
+    * [out_dir](#out_dir)
+    * [out_format](#out_format)
+    * [lists](#lists)
+      * [id](#id)
+      * [comment](#comment)
+      * [compression](#compression)
+        * [archive_list_file](#archive_list_file)
+      * [source](#source)
+      * [tags](#tags)
+      * [regex](#regex)
+* [Building and running the container image](#building-and-running-the-container-image)
+* [Building and running the push image](#building-and-running-the-push-image)
+  * [Example env file](#example-env-file)
+
+<!-- vim-markdown-toc -->
 
 ## Features
 
