@@ -127,16 +127,18 @@ impl<'config> FilterController<'config, StageCategorize, FileInput, File> {
             info!("Updated: {}", category_list.name);
 
             // read lines from the included list and insert them into a tree set to remove duplicates
-            for filter_list in category_list.included_filter_lists.iter_mut() {
-                while let Ok(Some(chunk)) = filter_list
-                    .reader
-                    .as_mut()
-                    .unwrap()
-                    .lock()
-                    .await
-                    .chunk()
-                    .await
-                {
+            for filter_list_io in category_list.included_filter_lists.iter_mut() {
+                let flist = match filter_list_io.reader.as_mut() {
+                    Some(l) => l,
+                    None => {
+                        warn!(
+                            "filter list {} has no reader attached",
+                            filter_list_io.filter_list.id
+                        );
+                        continue;
+                    }
+                };
+                while let Ok(Some(chunk)) = flist.lock().await.chunk().await {
                     // insert the URLs into a BTreeSet to deduplicate and sort the data
                     let str_chunk = match String::from_utf8(chunk) {
                         Ok(s) => s.trim().to_string(),

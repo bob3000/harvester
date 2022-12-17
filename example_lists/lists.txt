@@ -1,0 +1,74 @@
+# Malware
+https://urlhaus.abuse.ch/downloads/hostfile/
+https://dsi.ut-capitole.fr/blacklists/download/phishing.tar.gz
+https://raw.githubusercontent.com/durablenapkin/scamblocklist/master/hosts.txt
+https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt
+https://bitbucket.org/ethanr/dns-blacklists/raw/8575c9f96e5b4a1308f2f12394abd86d0927a4a0/bad_lists/Mandiant_APT1_Report_Appendix_D.txt
+https://bitbucket.org/ethanr/dns-blacklists/raw/8575c9f96e5b4a1308f2f12394abd86d0927a4a0/bad_lists/hosts.txt
+https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-malware.txt
+https://raw.githubusercontent.com/Spam404/lists/master/main-blacklist.txt
+https://raw.githubusercontent.com/HorusTeknoloji/TR-PhishingList/master/url-lists.txt
+https://blocklistproject.github.io/Lists/alt-version/abuse-nl.txt
+https://blocklistproject.github.io/Lists/alt-version/fraud-nl.txt
+https://blocklistproject.github.io/Lists/alt-version/malware-nl.txt
+https://blocklistproject.github.io/Lists/alt-version/phishing-nl.txt
+https://blocklistproject.github.io/Lists/alt-version/ransomware-nl.txt
+https://blocklistproject.github.io/Lists/alt-version/scam-nl.txt
+https://raw.githubusercontent.com/deathbybandaid/piholeparser/master/Subscribable-Lists/ParsedBlacklists/Disconnect-Malware-Filter.txt
+https://raw.githubusercontent.com/deathbybandaid/piholeparser/master/Subscribable-Lists/ParsedBlacklists/Disconnect-Malvertising-Filter.txt
+https://raw.githubusercontent.com/PolishFiltersTeam/KADhosts/master/KADhosts.txt
+https://blocklist.cyberthreatcoalition.org/vetted/domain.txt
+https://dsi.ut-capitole.fr/blacklists/download/ddos.tar.gz
+
+# Tracking
+https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+https://v.firebog.net/hosts/Easyprivacy.txt
+https://gitlab.com/quidsup/notrack-blocklists/raw/master/notrack-blocklist.txt
+https://raw.githubusercontent.com/Perflyst/PiHoleBlocklist/master/android-tracking.txt
+https://v.firebog.net/hosts/AdguardDNS.txt
+https://raw.githubusercontent.com/anudeepND/blacklist/master/adservers.txt
+https://raw.githubusercontent.com/RooneyMcNibNug/pihole-stuff/master/SNAFU.txt
+https://hostsfile.mine.nu/hosts0.txt
+https://v.firebog.net/hosts/Easylist.txt
+https://raw.githubusercontent.com/FadeMind/hosts.extras/master/add.2o7Net/hosts
+https://hostfiles.frogeye.fr/firstparty-trackers-hosts.txt
+https://blocklistproject.github.io/Lists/alt-version/ads-nl.txt
+https://blocklistproject.github.io/Lists/alt-version/tracking-nl.txt
+https://block.energized.pro/basic/formats/domains.txt
+https://raw.githubusercontent.com/bigdargon/hostsVN/master/hosts
+https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/spy.txt
+https://blocklistproject.github.io/Lists/alt-version/smart-tv-nl.txt
+https://raw.githubusercontent.com/jerryn70/GoodbyeAds/master/Hosts/GoodbyeAds.txt
+https://raw.githubusercontent.com/jerryn70/GoodbyeAds/master/Extension/GoodbyeAds-Xiaomi-Extension.txt
+https://raw.githubusercontent.com/jerryn70/GoodbyeAds/master/Extension/GoodbyeAds-Samsung-AdBlock.txt
+https://dsi.ut-capitole.fr/blacklists/download/publicite.tar.gz
+
+# Google
+https://raw.githubusercontent.com/nickspaargaren/no-google/master/pihole-google.txt
+
+# Facebook
+https://blocklistproject.github.io/Lists/alt-version/facebook-nl.txt
+https://blocklistproject.github.io/Lists/alt-version/whatsapp-nl.txt
+
+# TikTok
+https://blocklistproject.github.io/Lists/alt-version/tiktok-nl.txt
+
+# Microsoft
+https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/extra.txt
+https://raw.githubusercontent.com/crazy-max/WindowsSpyBlocker/master/data/hosts/update.txt
+
+# Crypto
+https://blocklistproject.github.io/Lists/alt-version/crypto-nl.txt
+https://dsi.ut-capitole.fr/blacklists/download/bitcoin.tar.gz
+https://dsi.ut-capitole.fr/blacklists/download/cryptojacking.tar.gz
+
+# Porn
+https://raw.githubusercontent.com/Sinfonietta/hostfiles/master/pornography-hosts
+https://raw.githubusercontent.com/chadmayfield/pihole-blocklists/master/lists/pi_blocklist_porn_all.list
+https://block.energized.pro/porn/formats/domains.txt
+https://raw.githubusercontent.com/Sinfonietta/hostfiles/master/snuff-hosts
+https://dsi.ut-capitole.fr/blacklists/download/adult.tar.gz
+https://raw.githubusercontent.com/mhxion/pornaway/master/hosts/porn_ads.txt
+https://raw.githubusercontent.com/mhxion/pornaway/master/hosts/porn_sites.txt
+https://blocklistproject.github.io/Lists/alt-version/porn-nl.txt
+
