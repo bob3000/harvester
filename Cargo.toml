@@ -23,7 +23,7 @@ serde = { version = "1.0.128", features = ["derive"] }
 async-trait = "0.1.58"
 regex = "1.7.0"
 flate2 = "1.0.24"
-async-compression = { version = "0.3.14", features = [
+async-compression = { version = "0.3.15", features = [
   "gzip",
   "bzip2",
   "tokio",
