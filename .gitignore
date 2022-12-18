@@ -1,7 +1,10 @@
-/target
+*.env
 *.txt
 *.json
 *.gz
+/example_lists/*
+/target
 /cache
 /result
 /test_cache
+/container_cache/
