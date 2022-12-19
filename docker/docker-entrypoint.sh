@@ -34,12 +34,18 @@ if [ $error -eq 1 ]; then
   exit 1
 fi
 
-# pull or init git repo
+# pull or clone git repo
+if [ -d .git ]; then
+  git checkout $GIT_TARGET_BRANCH || git checkout -b $GIT_TARGET_BRANCH
+  git remote show tokenupstream 2> /dev/null || git remote add tokenupstream $GIT_URL
+  git pull tokenupstream $GIT_TARGET_BRANCH || true
+else
+  git clone $GIT_URL .
+  git remote show tokenupstream 2> /dev/null || git remote add tokenupstream $GIT_URL
+  git checkout $GIT_TARGET_BRANCH || git checkout -b $GIT_TARGET_BRANCH
+fi
 git config --global user.name "$GIT_USER_NAME"
 git config --global user.email "$GIT_USER_EMAIL"
-git remote show tokenupstream 2> /dev/null || git remote add tokenupstream $GIT_URL
-git checkout $GIT_TARGET_BRANCH && git pull tokenupstream $GIT_TARGET_BRANCH \
-  || git clone $GIT_URL .
 
 # make sure not to write into the wrong directories
 echo "${HARVESTER_CONFIG}" \
