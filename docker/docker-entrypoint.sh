@@ -34,12 +34,24 @@ if [ $error -eq 1 ]; then
   exit 1
 fi
 
-echo "${HARVESTER_CONFIG}" > config.json
-harvester --config config.json ${HARVESTER_ARGS:-}
+# pull or init git repo
 git config --global user.name "$GIT_USER_NAME"
 git config --global user.email "$GIT_USER_EMAIL"
-git remote show tokenpush 2> /dev/null || git remote add tokenpush $GIT_URL
-git add result/
+git remote show tokenupstream 2> /dev/null || git remote add tokenupstream $GIT_URL
+git checkout $GIT_TARGET_BRANCH && git pull tokenupstream $GIT_TARGET_BRANCH \
+  || git clone $GIT_URL .
+
+# make sure not to write into the wrong directories
+echo "${HARVESTER_CONFIG}" \
+  | jq -r --arg out_format ${HARVESTER_OUT_FORMAT:-Lua} '.output_format |= $out_format' \
+  | jq -r '.cache_dir |= "/var/cache/harvester"' \
+  | jq -r '.output_dir |= "./"' \
+  > /tmp/config.json
+# run harvester
+harvester --config /tmp/config.json ${HARVESTER_ARGS:-}
+
+# commit and push results
+git add .
 git commit -m'rules update'
-git push tokenpush $GIT_TARGET_BRANCH
-git remote remove tokenpush
+git push tokenupstream $GIT_TARGET_BRANCH
+git remote remove tokenupstream
