@@ -34,6 +34,12 @@ if [ $error -eq 1 ]; then
   exit 1
 fi
 
+# prepare target directory
+REPO_DIR=${HARVESTER_REPO_DIR:-/var/cache/harvester/output}
+CACHE_DIR=${HARVESTER_CACHE_DIR:-/var/cache/harvester/cache}
+mkdir -p "$REPO_DIR"
+cd "$REPO_DIR"
+
 # pull or clone git repo
 if [ -d .git ]; then
   git checkout $GIT_TARGET_BRANCH || git checkout -b $GIT_TARGET_BRANCH
@@ -50,7 +56,7 @@ git config --global user.email "$GIT_USER_EMAIL"
 # make sure not to write into the wrong directories
 echo "${HARVESTER_CONFIG}" \
   | jq -r --arg out_format ${HARVESTER_OUT_FORMAT:-Lua} '.output_format |= $out_format' \
-  | jq -r '.cache_dir |= "/var/cache/harvester"' \
+  | jq -r --arg cache_dir "${CACHE_DIR}" '.cache_dir |= $cache_dir' \
   | jq -r '.output_dir |= "./"' \
   > /tmp/config.json
 # run harvester
