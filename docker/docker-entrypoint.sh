@@ -41,6 +41,8 @@ mkdir -p "$REPO_DIR"
 cd "$REPO_DIR"
 
 # pull or clone git repo
+git config --global user.name "$GIT_USER_NAME"
+git config --global user.email "$GIT_USER_EMAIL"
 if [ -d .git ]; then
   git checkout $GIT_TARGET_BRANCH || git checkout -b $GIT_TARGET_BRANCH
   git remote show tokenupstream 2> /dev/null || git remote add tokenupstream $GIT_URL
@@ -50,8 +52,6 @@ else
   git remote show tokenupstream 2> /dev/null || git remote add tokenupstream $GIT_URL
   git checkout $GIT_TARGET_BRANCH || git checkout -b $GIT_TARGET_BRANCH
 fi
-git config --global user.name "$GIT_USER_NAME"
-git config --global user.email "$GIT_USER_EMAIL"
 
 # make sure not to write into the wrong directories
 echo "${HARVESTER_CONFIG}" \
