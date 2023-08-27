@@ -137,7 +137,7 @@ impl Input for FileInput {
         match self.handle.as_mut().unwrap() {
             Handle::File(file) => match file.read_line(&mut str_buf).await {
                 Ok(n) if n > 0 => Ok(Some(str_buf.as_bytes().to_vec())),
-                Ok(n) if n == 0 => Ok(None),
+                Ok(0) => Ok(None),
                 Ok(_) => Ok(None),
                 Err(e) => Err(anyhow::anyhow!("Error reading line from file: {}", e)),
             },
