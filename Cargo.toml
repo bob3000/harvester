@@ -32,6 +32,6 @@ bytes = "1.2.1"
 log = "0.4.17"
 env_logger = "0.10.0"
 clap = { version = "4.0.22", features = ["derive"] }
-colored = "2.0.0"
+colored = "2.0.4"
 tokio-tar = "0.3.0"
 proc-macro2 = { version = "=1.0.66", features=["default", "proc-macro"] }
